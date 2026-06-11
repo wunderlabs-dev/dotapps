@@ -3,7 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2024-09-25"
 account_id = "9314014021a0127a3f9bed9b4f77be3a"
 
-# No custom routes: the registry is served from the workers.dev subdomain.
+# Served from both the workers.dev subdomain (always reachable) and the
+# branded custom domain (resolves once dotapps.club NS finishes propagating).
+workers_dev = true
+
+[[routes]]
+pattern = "registry.dotapps.club"
+custom_domain = true
 
 # Cloudflare R2 bucket holding published .apps artifacts, their manifests,
 # and the per-app `latest` version pointers.

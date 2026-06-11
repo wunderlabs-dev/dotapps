@@ -488,10 +488,13 @@ async dotappsInstalledApps() : Promise<Result<InstalledApp[], AppError>> {
  * Install (or update) an app: download the `.apps`, unpack it into the
  * shared repos dir, and `podman load` the image inside the VM. The host
  * port assignment survives updates; the data volume is version-independent.
+ * 
+ * `version` is `None` for the latest version (the launcher's Install/Update
+ * buttons) or `Some` for an exact version (`dotapps://slug@version` links).
  */
-async dotappsInstallApp(slug: string) : Promise<Result<InstalledApp, AppError>> {
+async dotappsInstallApp(slug: string, version: string | null) : Promise<Result<InstalledApp, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("dotapps_install_app", { slug }) };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_install_app", { slug, version }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

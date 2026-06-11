@@ -12,6 +12,9 @@ pub mod types;
 #[cfg(target_os = "macos")]
 pub mod commands;
 
+#[cfg(target_os = "macos")]
+pub mod deeplink;
+
 use std::collections::HashMap;
 
 use tokio::task::JoinHandle;

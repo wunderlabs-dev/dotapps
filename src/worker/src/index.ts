@@ -284,6 +284,32 @@ async function handleGetLatest(env: Env, origin: string, slug: string): Promise<
   return jsonResponse({ manifest, downloadUrl });
 }
 
+// GET /v1/apps/{slug}/versions/{version} - resolve a specific version's
+// manifest plus a download URL. Backs `dotapps://slug@version` deep links,
+// which install an exact version rather than whatever is latest.
+async function handleGetVersion(
+  env: Env,
+  origin: string,
+  slug: string,
+  version: string,
+): Promise<Response> {
+  const manifest = await readJson<Manifest>(env.REGISTRY, manifestKey(slug, version));
+  if (manifest === null) {
+    return jsonResponse({ error: "version not found" }, 404);
+  }
+  const blob = await env.REGISTRY.head(blobKey(slug, version));
+  if (blob === null) {
+    return jsonResponse({ error: "version not found" }, 404);
+  }
+
+  const aws = presignClient(env);
+  const downloadUrl = aws
+    ? await presignBlobUrl(env, aws, blobKey(slug, version), "GET")
+    : `${origin}/v1/blob/${blobKey(slug, version)}`;
+
+  return jsonResponse({ manifest, downloadUrl });
+}
+
 // Parse a single-range RFC 7233 `Range: bytes=<start>-<end>` header into the
 // shape R2's `bucket.get()` accepts. Returns null when the header is absent,
 // multi-range, or syntactically invalid (the caller should ignore and serve
@@ -450,6 +476,21 @@ export default {
           return jsonResponse({ error: "invalid slug" }, 400);
         }
         return handleGetLatest(env, origin, slug);
+      }
+
+      // GET /v1/apps/{slug}/versions/{version} - resolve an exact version
+      // (deep-link installs). Checked before the POST /versions route below.
+      const versionMatch = path.match(/^\/v1\/apps\/([^/]+)\/versions\/([^/]+)$/);
+      if (request.method === "GET" && versionMatch) {
+        const slug = versionMatch[1];
+        const version = versionMatch[2];
+        if (!SLUG_PATTERN.test(slug)) {
+          return jsonResponse({ error: "invalid slug" }, 400);
+        }
+        if (!isValidVersion(version)) {
+          return jsonResponse({ error: "invalid version" }, 400);
+        }
+        return handleGetVersion(env, origin, slug, version);
       }
 
       // POST /v1/apps/{slug}/versions - start a publish (auth)

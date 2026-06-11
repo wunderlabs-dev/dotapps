@@ -118,6 +118,28 @@ impl VmLifecycle {
         self.manager.lock().await.is_some()
     }
 
+    /// Wait until the VM reaches `Running`, or `timeout` elapses. Used by the
+    /// deep-link handler, which can fire on a cold launch while the VM is
+    /// still booting. Returns `true` if the VM is running.
+    pub async fn wait_until_running(&self, timeout: std::time::Duration) -> bool {
+        let mut rx = self.status_rx.clone();
+        let deadline = tokio::time::sleep(timeout);
+        tokio::pin!(deadline);
+        loop {
+            if *rx.borrow() == VmStatus::Running {
+                return true;
+            }
+            tokio::select! {
+                changed = rx.changed() => {
+                    if changed.is_err() {
+                        return false;
+                    }
+                }
+                () = &mut deadline => return *rx.borrow() == VmStatus::Running,
+            }
+        }
+    }
+
     pub fn manager(&self) -> Arc<Mutex<Option<VmGateway>>> {
         Arc::clone(&self.manager)
     }

@@ -41,18 +41,38 @@ pub fn dotapps_installed_apps(
 /// Install (or update) an app: download the `.apps`, unpack it into the
 /// shared repos dir, and `podman load` the image inside the VM. The host
 /// port assignment survives updates; the data volume is version-independent.
+///
+/// `version` is `None` for the latest version (the launcher's Install/Update
+/// buttons) or `Some` for an exact version (`dotapps://slug@version` links).
 #[tauri::command]
 #[specta::specta]
 pub async fn dotapps_install_app(
     store: State<'_, Arc<AppStore>>,
     vm: State<'_, Arc<VmLifecycle>>,
     slug: String,
+    version: Option<String>,
 ) -> Result<InstalledApp, AppError> {
-    validate_slug(&slug)?;
-    let (fetched, download_url) = registry::fetch_latest(&slug).await?;
-    ensure_slug_matches(&slug, &fetched.slug)?;
+    install_inner(&store, &vm, &slug, version.as_deref()).await
+}
 
-    let dir = paths::repos_dir()?.join(&slug);
+/// Shared install path for [`dotapps_install_app`] and the deep-link handler.
+pub async fn install_inner(
+    store: &AppStore,
+    vm: &VmLifecycle,
+    slug: &str,
+    version: Option<&str>,
+) -> Result<InstalledApp, AppError> {
+    validate_slug(slug)?;
+    let (fetched, download_url) = match version {
+        Some(version) => {
+            super::types::validate_version(version)?;
+            registry::fetch_version(slug, version).await?
+        }
+        None => registry::fetch_latest(slug).await?,
+    };
+    ensure_slug_matches(slug, &fetched.slug)?;
+
+    let dir = paths::repos_dir()?.join(slug);
     tokio::fs::create_dir_all(&dir).await?;
     let archive = dir.join("app.apps");
     registry::download_artifact(&download_url, &archive).await?;
@@ -63,7 +83,7 @@ pub async fn dotapps_install_app(
         tokio::task::spawn_blocking(move || registry::unpack_artifact(&archive, &dir)).await??
     };
     let _ = tokio::fs::remove_file(&archive).await;
-    ensure_slug_matches(&slug, &manifest.slug)?;
+    ensure_slug_matches(slug, &manifest.slug)?;
     manifest.validate()?;
 
     let load_cmd = format!("podman load -i /repos/{slug}/image.tar");
@@ -75,7 +95,7 @@ pub async fn dotapps_install_app(
     }
 
     // Keep a previously assigned host port so the app reopens on the same URL.
-    let host_port = store.get(&slug)?.and_then(|existing| existing.host_port);
+    let host_port = store.get(slug)?.and_then(|existing| existing.host_port);
     let app = InstalledApp {
         manifest,
         host_port,
@@ -180,7 +200,13 @@ pub async fn dotapps_open_app(
     slug: String,
 ) -> Result<(), AppError> {
     validate_slug(&slug)?;
-    let installed = store.get(&slug)?.ok_or_else(|| not_installed(&slug))?;
+    open_inner(&app, &store, &slug)
+}
+
+/// Shared window-opening path for [`dotapps_open_app`] and the deep-link
+/// handler. Focuses an existing window for the app or builds a new one.
+pub fn open_inner(app: &tauri::AppHandle, store: &AppStore, slug: &str) -> Result<(), AppError> {
+    let installed = store.get(slug)?.ok_or_else(|| not_installed(slug))?;
     let port = installed.host_port.ok_or_else(|| AppError::InvalidInput {
         field: "slug".into(),
         reason: format!("app '{slug}' has no host port yet; run it first"),
@@ -198,7 +224,7 @@ pub async fn dotapps_open_app(
         .map_err(|e| AppError::Internal {
             reason: format!("cannot parse app url for '{slug}': {e}"),
         })?;
-    let window = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(url))
+    let window = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::External(url))
         .title(&installed.manifest.name)
         .inner_size(1100.0, 750.0)
         .build()?;

@@ -27,7 +27,7 @@ interface StoreApp {
 const dotappsApi = {
   registryApps: () => invoke<StoreApp[]>("dotapps_registry_apps"),
   installedApps: () => invoke<InstalledApp[]>("dotapps_installed_apps"),
-  install: (slug: string) => invoke<InstalledApp>("dotapps_install_app", { slug }),
+  install: (slug: string) => invoke<InstalledApp>("dotapps_install_app", { slug, version: null }),
   run: (slug: string) => invoke<number>("dotapps_run_app", { slug }),
   stop: (slug: string) => invoke<void>("dotapps_stop_app", { slug }),
   open: (slug: string) => invoke<void>("dotapps_open_app", { slug }),

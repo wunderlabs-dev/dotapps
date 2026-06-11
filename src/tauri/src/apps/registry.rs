@@ -11,9 +11,11 @@ use tokio::io::AsyncWriteExt;
 use super::types::{Manifest, StoreApp};
 use crate::error::AppError;
 
-/// Deployed registry Worker URL. Overridable via `DOTAPPS_REGISTRY`; the
-/// `registry.dotapps.club` custom domain binds during Phase C0 integration.
-pub const DEFAULT_REGISTRY: &str = "https://dotapps-registry.REPLACE.workers.dev";
+/// Deployed registry Worker URL. Overridable via `DOTAPPS_REGISTRY`. The
+/// branded `registry.dotapps.club` custom domain is also bound and takes over
+/// once the zone's nameservers finish propagating; the workers.dev URL stays
+/// reachable regardless.
+pub const DEFAULT_REGISTRY: &str = "https://dotapps-registry.isopusoktoday.workers.dev";
 
 /// The only entries a `.apps` archive may contain (frozen contract).
 const DOTAPPS_ENTRIES: [&str; 2] = ["manifest.json", "image.tar"];
@@ -59,6 +61,15 @@ pub async fn fetch_store_apps() -> Result<Vec<StoreApp>, AppError> {
 /// `GET {base}/v1/apps/{slug}/latest` → (manifest, download URL).
 pub async fn fetch_latest(slug: &str) -> Result<(Manifest, String), AppError> {
     let url = format!("{}/v1/apps/{slug}/latest", registry_base());
+    let parsed: LatestResponse = get_success(&url).await?.json().await?;
+    Ok((parsed.manifest, parsed.download_url))
+}
+
+/// `GET {base}/v1/apps/{slug}/versions/{version}` → (manifest, download URL).
+///
+/// Resolves an exact version, backing `dotapps://slug@version` deep links.
+pub async fn fetch_version(slug: &str, version: &str) -> Result<(Manifest, String), AppError> {
+    let url = format!("{}/v1/apps/{slug}/versions/{version}", registry_base());
     let parsed: LatestResponse = get_success(&url).await?.json().await?;
     Ok((parsed.manifest, parsed.download_url))
 }

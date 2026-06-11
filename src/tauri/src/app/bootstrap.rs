@@ -118,6 +118,7 @@ pub fn run() -> Result<(), AppError> {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 platform_for_event.on_close_requested(window, api);
@@ -147,6 +148,9 @@ pub fn run() -> Result<(), AppError> {
             emit_recovery_reports(app.handle(), &recovery_reports);
 
             crate::app::updater::schedule_periodic_check(app.handle().clone());
+
+            #[cfg(target_os = "macos")]
+            register_deep_links(app.handle());
 
             Ok(())
         })
@@ -249,6 +253,29 @@ fn spawn_mcp_listener(app: &tauri::AppHandle, listener: Option<tokio::net::TcpLi
 /// was forked from. Intentionally a no-op.
 fn install_global_cursor_mcp(_token: &str) {
     tracing::debug!("global cursor mcp install disabled in dotapps");
+}
+
+/// Subscribe to `dotapps://` deep links: each install (and launches) the
+/// requested app. In a debug build the URL scheme is also registered at
+/// runtime so links work under `cargo tauri dev` without a bundled `.app`
+/// (the release build relies on the bundle's `CFBundleURLTypes`).
+#[cfg(target_os = "macos")]
+fn register_deep_links(app: &tauri::AppHandle) {
+    use tauri_plugin_deep_link::DeepLinkExt;
+
+    let handle = app.clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            let handle = handle.clone();
+            let url = url.to_string();
+            tauri::async_runtime::spawn(crate::apps::deeplink::handle(handle, url));
+        }
+    });
+
+    #[cfg(debug_assertions)]
+    if let Err(e) = app.deep_link().register_all() {
+        tracing::warn!("cannot register dotapps:// scheme for dev: {e}");
+    }
 }
 
 fn resolve_cloudflared(app: &tauri::App) {
