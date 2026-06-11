@@ -1,4 +1,4 @@
-"""Cafe Tracker — log coffee bean deliveries. Single-file vibox demo app."""
+"""Cafe Tracker — log coffee bean deliveries. Single-file dotapps demo app."""
 
 import os
 import sqlite3

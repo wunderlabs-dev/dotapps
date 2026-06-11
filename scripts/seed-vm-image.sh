@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Seeds ~/.vibox/vm with the locally-built opnble base image so first launch
+# Seeds ~/.dotapps/vm with the locally-built opnble base image so first launch
 # skips the 4GB download. APFS clonefile makes the copy instant.
 set -euo pipefail
 
 SRC="$HOME/.opnble/vm/alpine-base.img"
-DST_DIR="$HOME/.vibox/vm"
+DST_DIR="$HOME/.dotapps/vm"
 [ -f "$SRC" ] || { echo "missing $SRC — build or download it via opnble first"; exit 1; }
 
 mkdir -p "$DST_DIR"

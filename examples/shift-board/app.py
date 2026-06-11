@@ -1,4 +1,4 @@
-"""Shift Board — weekly shift schedule. Single-file vibox demo app."""
+"""Shift Board — weekly shift schedule. Single-file dotapps demo app."""
 
 import os
 import sqlite3
