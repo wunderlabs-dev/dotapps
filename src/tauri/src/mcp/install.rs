@@ -54,7 +54,7 @@ pub struct SweepReport {
 /// channel.
 #[expect(
     dead_code,
-    reason = "vibox no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
+    reason = "dotapps no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
 )]
 #[derive(Debug, Clone)]
 pub enum GlobalInstall {
@@ -160,7 +160,7 @@ pub fn install_project_entry(repo_path: &Path, label: &str) {
 /// `mcpServers.*` entries always survive.
 #[expect(
     dead_code,
-    reason = "vibox no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
+    reason = "dotapps no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
 )]
 pub fn write_global_mcp_config(token: &str, port: u16) -> Result<GlobalInstall, AppError> {
     match global_config_path()? {

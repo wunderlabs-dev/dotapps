@@ -1,8 +1,8 @@
-//! Vibox app lifecycle Tauri commands (frozen wire contract: six commands).
+//! dotapps app lifecycle Tauri commands (frozen wire contract: six commands).
 //!
-//! Apps install from the registry into `~/.vibox/repos/{slug}/` (`VirtioFS`
+//! Apps install from the registry into `~/.dotapps/repos/{slug}/` (`VirtioFS`
 //! mounts that at `/repos/{slug}/` in the VM) and run as podman containers
-//! named `vibox-{slug}` with a persistent `vibox-{slug}-data` volume at
+//! named `dotapps-{slug}` with a persistent `dotapps-{slug}-data` volume at
 //! `/data`. All podman interaction goes through the agent's `ExecHost` RPC.
 
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use crate::vm::VmLifecycle;
 /// `GET /v1/apps` from the registry: everything installable.
 #[tauri::command]
 #[specta::specta]
-pub async fn vibox_registry_apps() -> Result<Vec<StoreApp>, AppError> {
+pub async fn dotapps_registry_apps() -> Result<Vec<StoreApp>, AppError> {
     registry::fetch_store_apps().await
 }
 
@@ -32,18 +32,18 @@ pub async fn vibox_registry_apps() -> Result<Vec<StoreApp>, AppError> {
     clippy::needless_pass_by_value,
     reason = "Tauri command handler receives owned deserialized values"
 )]
-pub fn vibox_installed_apps(
+pub fn dotapps_installed_apps(
     store: State<Arc<AppStore>>,
 ) -> Result<Vec<InstalledApp>, AppError> {
     store.list()
 }
 
-/// Install (or update) an app: download the `.vibox`, unpack it into the
+/// Install (or update) an app: download the `.apps`, unpack it into the
 /// shared repos dir, and `podman load` the image inside the VM. The host
 /// port assignment survives updates; the data volume is version-independent.
 #[tauri::command]
 #[specta::specta]
-pub async fn vibox_install_app(
+pub async fn dotapps_install_app(
     store: State<'_, Arc<AppStore>>,
     vm: State<'_, Arc<VmLifecycle>>,
     slug: String,
@@ -54,13 +54,13 @@ pub async fn vibox_install_app(
 
     let dir = paths::repos_dir()?.join(&slug);
     tokio::fs::create_dir_all(&dir).await?;
-    let archive = dir.join("app.vibox");
-    registry::download_vibox(&download_url, &archive).await?;
+    let archive = dir.join("app.apps");
+    registry::download_artifact(&download_url, &archive).await?;
 
     let manifest = {
         let archive = archive.clone();
         let dir = dir.clone();
-        tokio::task::spawn_blocking(move || registry::unpack_vibox(&archive, &dir)).await??
+        tokio::task::spawn_blocking(move || registry::unpack_artifact(&archive, &dir)).await??
     };
     let _ = tokio::fs::remove_file(&archive).await;
     ensure_slug_matches(&slug, &manifest.slug)?;
@@ -88,7 +88,7 @@ pub async fn vibox_install_app(
 /// Run an installed app and return its host port.
 #[tauri::command]
 #[specta::specta]
-pub async fn vibox_run_app(
+pub async fn dotapps_run_app(
     store: State<'_, Arc<AppStore>>,
     vm: State<'_, Arc<VmLifecycle>>,
     forwards: State<'_, Arc<AppForwards>>,
@@ -97,7 +97,7 @@ pub async fn vibox_run_app(
     run_app_inner(&store, &vm, &forwards, &slug).await
 }
 
-/// Shared run path for [`vibox_run_app`] and the startup auto-run hook.
+/// Shared run path for [`dotapps_run_app`] and the startup auto-run hook.
 ///
 /// `podman rm -f` before `run` makes this idempotent: re-running an already
 /// running app (or one whose old container exited) recreates the container
@@ -147,7 +147,7 @@ pub async fn run_app_inner(
 /// Stop a running app's container and tear down its port forward.
 #[tauri::command]
 #[specta::specta]
-pub async fn vibox_stop_app(
+pub async fn dotapps_stop_app(
     store: State<'_, Arc<AppStore>>,
     vm: State<'_, Arc<VmLifecycle>>,
     forwards: State<'_, Arc<AppForwards>>,
@@ -174,7 +174,7 @@ pub async fn vibox_stop_app(
 /// Open (or focus) the app's dedicated window pointing at its host port.
 #[tauri::command]
 #[specta::specta]
-pub async fn vibox_open_app(
+pub async fn dotapps_open_app(
     app: tauri::AppHandle,
     store: State<'_, Arc<AppStore>>,
     slug: String,

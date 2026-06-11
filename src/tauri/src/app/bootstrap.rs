@@ -96,7 +96,7 @@ pub fn run() -> Result<(), AppError> {
         Arc::clone(&authenticator),
     ));
 
-    // ==================== Vibox Apps ====================
+    // ==================== dotapps Apps ====================
     let app_store = Arc::new(crate::apps::store::AppStore::load(
         crate::constants::paths::base_dir()?.join("apps.json"),
     ));
@@ -169,7 +169,7 @@ pub fn run() -> Result<(), AppError> {
         .manage(github_repos_client)
         .manage(Arc::clone(&exec_runner))
         .manage(Arc::clone(&tool_ring))
-        // Manage vibox app state
+        // Manage dotapps app state
         .manage(app_store)
         .manage(app_forwards);
 
@@ -244,11 +244,11 @@ fn spawn_mcp_listener(app: &tauri::AppHandle, listener: Option<tokio::net::TcpLi
     });
 }
 
-/// Vibox does not integrate with Cursor: writing the global `~/.cursor/mcp.json`
+/// dotapps does not integrate with Cursor: writing the global `~/.cursor/mcp.json`
 /// entry here would clobber the entry owned by the opnble app this codebase
 /// was forked from. Intentionally a no-op.
 fn install_global_cursor_mcp(_token: &str) {
-    tracing::debug!("global cursor mcp install disabled in vibox");
+    tracing::debug!("global cursor mcp install disabled in dotapps");
 }
 
 fn resolve_cloudflared(app: &tauri::App) {

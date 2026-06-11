@@ -1,4 +1,4 @@
-//! Installed-app storage at `~/.vibox/apps.json`.
+//! Installed-app storage at `~/.dotapps/apps.json`.
 #![expect(
     clippy::disallowed_types,
     reason = "sync file I/O locking, not held across await points"
@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use super::types::InstalledApp;
 use crate::error::AppError;
 
-/// First host port assigned to a vibox app. Project dev servers allocate from
+/// First host port assigned to a dotapps app. Project dev servers allocate from
 /// 3001, so apps get their own range to avoid collisions.
 const FIRST_PORT: u16 = 4100;
 
@@ -22,7 +22,7 @@ struct StoredApps {
     apps: HashMap<String, InstalledApp>,
 }
 
-/// JSON-backed store of installed vibox apps, keyed by slug.
+/// JSON-backed store of installed dotapps apps, keyed by slug.
 ///
 /// Deliberately separate from `JsonProjectStore`: apps and projects share no
 /// state, and the store stays minimal (single file, atomic rename on save).

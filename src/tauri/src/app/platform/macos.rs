@@ -75,7 +75,7 @@ impl PlatformBootstrap for MacosBoot {
                             .await;
                     }
 
-                    // Auto-run installed vibox apps now that the VM is up.
+                    // Auto-run installed dotapps apps now that the VM is up.
                     // Failures are logged per-app inside the helper; one
                     // broken app must not block the others.
                     let app_store = Arc::clone(

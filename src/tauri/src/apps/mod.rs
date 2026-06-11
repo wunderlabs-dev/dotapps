@@ -1,9 +1,9 @@
-//! Vibox app management: registry-published podman apps running in the VM.
+//! dotapps app management: registry-published podman apps running in the VM.
 //!
-//! Apps are published to the vibox registry as `.vibox` artifacts (a
+//! Apps are published to the dotapps registry as `.apps` artifacts (a
 //! zstd-compressed tar of `manifest.json` + `image.tar`), installed under
-//! `~/.vibox/repos/{slug}/`, and run as podman containers inside the VM via
-//! the agent's `ExecHost` RPC. Installed state lives at `~/.vibox/apps.json`.
+//! `~/.dotapps/repos/{slug}/`, and run as podman containers inside the VM via
+//! the agent's `ExecHost` RPC. Installed state lives at `~/.dotapps/apps.json`.
 
 pub mod registry;
 pub mod store;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 use tokio::task::JoinHandle;
 
-/// Port-forward handles for running vibox apps, keyed by slug.
+/// Port-forward handles for running dotapps apps, keyed by slug.
 ///
 /// Managed as Tauri state so the run/stop commands and the startup auto-run
 /// task share the same forwarders (mirrors `VmRuntime::port_forwards`).

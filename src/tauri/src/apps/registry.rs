@@ -1,6 +1,6 @@
-//! Registry client: fetch the app catalog and download `.vibox` artifacts.
+//! Registry client: fetch the app catalog and download `.apps` artifacts.
 //!
-//! The registry base URL comes from the `VIBOX_REGISTRY` environment
+//! The registry base URL comes from the `DOTAPPS_REGISTRY` environment
 //! variable, falling back to [`DEFAULT_REGISTRY`].
 
 use std::path::Path;
@@ -11,16 +11,16 @@ use tokio::io::AsyncWriteExt;
 use super::types::{Manifest, StoreApp};
 use crate::error::AppError;
 
-/// Deployed registry Worker URL. Overridable via `VIBOX_REGISTRY`; the
-/// dotapps rename + `registry.dotapps.club` custom domain land in Phase C0.
-pub const DEFAULT_REGISTRY: &str = "https://vibox-registry.isopusoktoday.workers.dev";
+/// Deployed registry Worker URL. Overridable via `DOTAPPS_REGISTRY`; the
+/// `registry.dotapps.club` custom domain binds during Phase C0 integration.
+pub const DEFAULT_REGISTRY: &str = "https://dotapps-registry.REPLACE.workers.dev";
 
-/// The only entries a `.vibox` archive may contain (frozen contract).
-const VIBOX_ENTRIES: [&str; 2] = ["manifest.json", "image.tar"];
+/// The only entries a `.apps` archive may contain (frozen contract).
+const DOTAPPS_ENTRIES: [&str; 2] = ["manifest.json", "image.tar"];
 
-/// Registry base URL, overridable via `VIBOX_REGISTRY`.
+/// Registry base URL, overridable via `DOTAPPS_REGISTRY`.
 fn registry_base() -> String {
-    std::env::var("VIBOX_REGISTRY").unwrap_or_else(|_| DEFAULT_REGISTRY.to_string())
+    std::env::var("DOTAPPS_REGISTRY").unwrap_or_else(|_| DEFAULT_REGISTRY.to_string())
 }
 
 #[derive(serde::Deserialize)]
@@ -63,8 +63,8 @@ pub async fn fetch_latest(slug: &str) -> Result<(Manifest, String), AppError> {
     Ok((parsed.manifest, parsed.download_url))
 }
 
-/// Stream a `.vibox` artifact from `url` to `dest`.
-pub async fn download_vibox(url: &str, dest: &Path) -> Result<(), AppError> {
+/// Stream a `.apps` artifact from `url` to `dest`.
+pub async fn download_artifact(url: &str, dest: &Path) -> Result<(), AppError> {
     let response = get_success(url).await?;
     let mut stream = response.bytes_stream();
     let mut file = tokio::fs::File::create(dest).await?;
@@ -75,12 +75,12 @@ pub async fn download_vibox(url: &str, dest: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Unpack a `.vibox` file (zstd-compressed tar of exactly `manifest.json` +
+/// Unpack a `.apps` file (zstd-compressed tar of exactly `manifest.json` +
 /// `image.tar` at the root) into `dest_dir` and return the parsed manifest.
 ///
 /// Rejects archives containing any other entry so a malicious artifact can
 /// never write outside the app's repo directory.
-pub fn unpack_vibox(file: &Path, dest_dir: &Path) -> Result<Manifest, AppError> {
+pub fn unpack_artifact(file: &Path, dest_dir: &Path) -> Result<Manifest, AppError> {
     std::fs::create_dir_all(dest_dir)?;
 
     let decoder = zstd::stream::Decoder::new(std::fs::File::open(file)?)?;
@@ -93,9 +93,9 @@ pub fn unpack_vibox(file: &Path, dest_dir: &Path) -> Result<Manifest, AppError> 
         seen.push(name);
     }
 
-    for required in VIBOX_ENTRIES {
+    for required in DOTAPPS_ENTRIES {
         if !seen.iter().any(|s| s == required) {
-            return Err(invalid_vibox(format!(
+            return Err(invalid_artifact(format!(
                 "archive missing required entry: {required}"
             )));
         }
@@ -115,19 +115,19 @@ fn entry_file_name(path: &Path) -> Result<String, AppError> {
     let (first, rest) = (components.next(), components.next());
     if let (Some(std::path::Component::Normal(name)), None) = (first, rest) {
         let name = name.to_string_lossy().into_owned();
-        if VIBOX_ENTRIES.contains(&name.as_str()) {
+        if DOTAPPS_ENTRIES.contains(&name.as_str()) {
             return Ok(name);
         }
     }
-    Err(invalid_vibox(format!(
+    Err(invalid_artifact(format!(
         "unexpected archive entry: {}",
         path.display()
     )))
 }
 
-fn invalid_vibox(reason: String) -> AppError {
+fn invalid_artifact(reason: String) -> AppError {
     AppError::InvalidInput {
-        field: "vibox".into(),
+        field: "dotapps".into(),
         reason,
     }
 }
@@ -140,8 +140,8 @@ mod tests {
 
     const MANIFEST_JSON: &str = r#"{"name":"Smoke","slug":"smoke","version":"0.0.1","icon":"🧪","internalPort":8000,"description":""}"#;
 
-    /// Build a `.vibox` with the same crates the CLI uses (tar + zstd).
-    fn write_vibox(path: &Path, entries: &[(&str, &[u8])]) {
+    /// Build a `.apps` with the same crates the CLI uses (tar + zstd).
+    fn write_artifact(path: &Path, entries: &[(&str, &[u8])]) {
         let file = std::fs::File::create(path).unwrap();
         let encoder = zstd::stream::Encoder::new(file, 3).unwrap();
         let mut builder = tar::Builder::new(encoder);
@@ -157,10 +157,10 @@ mod tests {
     }
 
     #[test]
-    fn unpack_vibox_round_trips_manifest_and_image() {
+    fn unpack_artifact_round_trips_manifest_and_image() {
         let dir = TempDir::new().unwrap();
-        let archive = dir.path().join("app.vibox");
-        write_vibox(
+        let archive = dir.path().join("app.apps");
+        write_artifact(
             &archive,
             &[
                 ("manifest.json", MANIFEST_JSON.as_bytes()),
@@ -169,7 +169,7 @@ mod tests {
         );
 
         let dest = dir.path().join("unpacked");
-        let manifest = unpack_vibox(&archive, &dest).unwrap();
+        let manifest = unpack_artifact(&archive, &dest).unwrap();
 
         assert_eq!(manifest.slug, "smoke");
         assert_eq!(manifest.internal_port, 8000);
@@ -180,10 +180,10 @@ mod tests {
     }
 
     #[test]
-    fn unpack_vibox_accepts_dot_slash_prefixed_entries() {
+    fn unpack_artifact_accepts_dot_slash_prefixed_entries() {
         let dir = TempDir::new().unwrap();
-        let archive = dir.path().join("app.vibox");
-        write_vibox(
+        let archive = dir.path().join("app.apps");
+        write_artifact(
             &archive,
             &[
                 ("./manifest.json", MANIFEST_JSON.as_bytes()),
@@ -192,15 +192,15 @@ mod tests {
         );
 
         let dest = dir.path().join("unpacked");
-        let manifest = unpack_vibox(&archive, &dest).unwrap();
+        let manifest = unpack_artifact(&archive, &dest).unwrap();
         assert_eq!(manifest.slug, "smoke");
     }
 
     #[test]
-    fn unpack_vibox_rejects_unknown_entries() {
+    fn unpack_artifact_rejects_unknown_entries() {
         let dir = TempDir::new().unwrap();
-        let archive = dir.path().join("app.vibox");
-        write_vibox(
+        let archive = dir.path().join("app.apps");
+        write_artifact(
             &archive,
             &[
                 ("manifest.json", MANIFEST_JSON.as_bytes()),
@@ -210,34 +210,34 @@ mod tests {
         );
 
         let dest = dir.path().join("unpacked");
-        let err = unpack_vibox(&archive, &dest).unwrap_err();
+        let err = unpack_artifact(&archive, &dest).unwrap_err();
         assert!(
-            matches!(&err, AppError::InvalidInput { field, .. } if field == "vibox"),
+            matches!(&err, AppError::InvalidInput { field, .. } if field == "dotapps"),
             "expected InvalidInput, got {err:?}"
         );
         assert!(!dest.join("evil.sh").exists());
     }
 
     #[test]
-    fn unpack_vibox_rejects_nested_paths() {
+    fn unpack_artifact_rejects_nested_paths() {
         let dir = TempDir::new().unwrap();
-        let archive = dir.path().join("app.vibox");
-        write_vibox(
+        let archive = dir.path().join("app.apps");
+        write_artifact(
             &archive,
             &[("nested/manifest.json", MANIFEST_JSON.as_bytes())],
         );
 
-        let err = unpack_vibox(&archive, &dir.path().join("unpacked")).unwrap_err();
+        let err = unpack_artifact(&archive, &dir.path().join("unpacked")).unwrap_err();
         assert!(matches!(err, AppError::InvalidInput { .. }));
     }
 
     #[test]
-    fn unpack_vibox_rejects_missing_image_tar() {
+    fn unpack_artifact_rejects_missing_image_tar() {
         let dir = TempDir::new().unwrap();
-        let archive = dir.path().join("app.vibox");
-        write_vibox(&archive, &[("manifest.json", MANIFEST_JSON.as_bytes())]);
+        let archive = dir.path().join("app.apps");
+        write_artifact(&archive, &[("manifest.json", MANIFEST_JSON.as_bytes())]);
 
-        let err = unpack_vibox(&archive, &dir.path().join("unpacked")).unwrap_err();
+        let err = unpack_artifact(&archive, &dir.path().join("unpacked")).unwrap_err();
         assert!(
             matches!(&err, AppError::InvalidInput { reason, .. } if reason.contains("image.tar")),
             "expected missing image.tar error, got {err:?}"
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn default_registry_is_used_without_env_override() {
-        // VIBOX_REGISTRY is unset in tests; std::env::set_var is disallowed
+        // DOTAPPS_REGISTRY is unset in tests; std::env::set_var is disallowed
         // (not thread-safe), so only the fallback path is exercised here.
         assert_eq!(registry_base(), DEFAULT_REGISTRY);
     }

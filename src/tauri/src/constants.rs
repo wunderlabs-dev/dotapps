@@ -100,7 +100,7 @@ pub mod paths {
     use crate::error::AppError;
 
     /// Base directory name under home
-    pub const BASE_DIR: &str = ".vibox";
+    pub const BASE_DIR: &str = ".dotapps";
 
     /// Repos subdirectory name
     pub const REPOS_DIR: &str = "repos";

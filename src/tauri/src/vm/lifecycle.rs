@@ -152,7 +152,7 @@ impl VmLifecycle {
     /// Run a shell command directly on the VM host via the agent's `ExecHost`
     /// RPC (not inside a container). Returns (`exit_code`, stdout, stderr).
     ///
-    /// Used by vibox app commands to drive podman. The agent Arc is cloned
+    /// Used by dotapps app commands to drive podman. The agent Arc is cloned
     /// while briefly holding the lock so the RPC (up to 120s for large
     /// `podman load`s) does not hold the manager mutex.
     pub async fn exec_host(

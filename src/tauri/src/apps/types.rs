@@ -1,10 +1,10 @@
-//! Wire types for vibox apps (frozen contract: camelCase JSON).
+//! Wire types for dotapps apps (frozen contract: camelCase JSON).
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-/// App manifest as published to the registry (`vibox.json` / `manifest.json`).
+/// App manifest as published to the registry (`dotapps.json` / `manifest.json`).
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
@@ -17,7 +17,7 @@ pub struct Manifest {
     pub description: String,
 }
 
-/// An app installed on this host, persisted in `~/.vibox/apps.json`.
+/// An app installed on this host, persisted in `~/.dotapps/apps.json`.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InstalledApp {
@@ -51,21 +51,21 @@ impl Manifest {
         Ok(())
     }
 
-    /// Podman image reference the `.vibox` artifact was built with.
+    /// Podman image reference the `.apps` artifact was built with.
     pub fn image_ref(&self) -> String {
-        format!("vibox/{}:{}", self.slug, self.version)
+        format!("dotapps/{}:{}", self.slug, self.version)
     }
 
-    /// Container name inside the VM. The `vibox-` prefix keeps these apart
+    /// Container name inside the VM. The `dotapps-` prefix keeps these apart
     /// from the agent-managed `opnble-*` project containers.
     pub fn container_name(&self) -> String {
-        format!("vibox-{}", self.slug)
+        format!("dotapps-{}", self.slug)
     }
 
     /// Named volume mounted at `/data`. Version-independent so app data
     /// survives updates.
     pub fn volume_name(&self) -> String {
-        format!("vibox-{}-data", self.slug)
+        format!("dotapps-{}-data", self.slug)
     }
 }
 
@@ -149,9 +149,9 @@ mod tests {
     #[test]
     fn naming_helpers_derive_from_slug_and_version() {
         let m = manifest();
-        assert_eq!(m.image_ref(), "vibox/cafe-tracker:1.0.0");
-        assert_eq!(m.container_name(), "vibox-cafe-tracker");
-        assert_eq!(m.volume_name(), "vibox-cafe-tracker-data");
+        assert_eq!(m.image_ref(), "dotapps/cafe-tracker:1.0.0");
+        assert_eq!(m.container_name(), "dotapps-cafe-tracker");
+        assert_eq!(m.volume_name(), "dotapps-cafe-tracker-data");
     }
 
     #[test]

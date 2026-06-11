@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "vibox",
+  "productName": "dotapps",
   "version": "0.1.0",
-  "identifier": "com.vibox.app",
+  "identifier": "com.dotapps.app",
   "build": {
     "beforeDevCommand": null,
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "vibox",
+        "title": "dotapps",
         "width": 1440,
         "height": 1080,
         "visible": true,

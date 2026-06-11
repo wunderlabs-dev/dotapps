@@ -79,13 +79,13 @@ macro_rules! specta_builder_with {
 #[cfg(target_os = "macos")]
 pub fn macos_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     specta_builder_with![
-        // Vibox apps (macOS native: podman runs via the VM agent)
-        crate::apps::commands::vibox_registry_apps,
-        crate::apps::commands::vibox_installed_apps,
-        crate::apps::commands::vibox_install_app,
-        crate::apps::commands::vibox_run_app,
-        crate::apps::commands::vibox_stop_app,
-        crate::apps::commands::vibox_open_app,
+        // dotapps apps (macOS native: podman runs via the VM agent)
+        crate::apps::commands::dotapps_registry_apps,
+        crate::apps::commands::dotapps_installed_apps,
+        crate::apps::commands::dotapps_install_app,
+        crate::apps::commands::dotapps_run_app,
+        crate::apps::commands::dotapps_stop_app,
+        crate::apps::commands::dotapps_open_app,
         // VM (macOS native)
         crate::app::platform::macos::init_vm,
         crate::app::platform::macos::stop_vm,
