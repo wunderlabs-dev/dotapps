@@ -1,0 +1,80 @@
+name: Rust Quality Gate
+
+# Runs the same fmt + clippy + test gate that `make check` enforces locally,
+# on every PR and push to main that touches Rust. Catches the kind of
+# stable-clippy drift that slipped past pre-push hooks during the
+# v0.1.0-dryrun.1 stack: 23 errors on a release build for code that had
+# been merged to main weeks earlier without a Rust CI gate.
+#
+# Toolchain version is pinned via rust-toolchain.toml at the repo root,
+# which dtolnay/rust-toolchain@stable respects.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/tauri/**"
+      - "src/agent/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "clippy.toml"
+      - "scripts/prepare-resources.sh"
+      - ".github/workflows/rust-quality.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/tauri/**"
+      - "src/agent/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "clippy.toml"
+      - "scripts/prepare-resources.sh"
+      - ".github/workflows/rust-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust-quality:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        # Respects rust-toolchain.toml at repo root, which pins the
+        # channel + components.
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+
+      - name: Prepare resources
+        # `opnble`'s build script runs tauri-build, which validates
+        # every externalBin declared in tauri.conf{,.macos}.json. Without
+        # the sidecars on disk, every cargo command exits 1 before any
+        # real work happens. This step downloads the pinned vfkit,
+        # gvproxy, and cloudflared binaries into src/tauri/binaries/.
+        run: chmod +x ./scripts/prepare-resources.sh && ./scripts/prepare-resources.sh
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy (host)
+        run: cargo clippy -p opnble --all-targets -- -D warnings
+
+      - name: Clippy (agent)
+        run: cargo clippy -p opnble-agent --all-targets -- -D warnings
+
+      - name: Tests (host)
+        run: cargo test -p opnble
+
+      - name: Tests (agent)
+        run: cargo test -p opnble-agent

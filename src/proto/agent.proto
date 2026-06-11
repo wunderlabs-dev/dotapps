@@ -1,0 +1,162 @@
+syntax = "proto3";
+package opnble.agent;
+
+service Agent {
+    // Container lifecycle
+    rpc StartContainer(StartContainerRequest) returns (StartContainerResponse);
+    rpc StopContainer(StopContainerRequest) returns (StopContainerResponse);
+    rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse);
+    rpc ContainerStatus(ContainerStatusRequest) returns (ContainerStatusResponse);
+    rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+
+    // Log streaming
+    // NOTE: This is unary for now. Server-side streaming (returns stream LogEntry)
+    // will be implemented once async ttrpc is properly wired up.
+    rpc StreamLogs(StreamLogsRequest) returns (StreamLogsResponse);
+
+    // File operations
+    rpc TouchFile(TouchFileRequest) returns (TouchFileResponse);
+    rpc EnsurePath(EnsurePathRequest) returns (EnsurePathResponse);
+    rpc RemovePath(RemovePathRequest) returns (RemovePathResponse);
+    rpc RenamePath(RenamePathRequest) returns (RenamePathResponse);
+
+    // Health
+    rpc Ping(PingRequest) returns (PingResponse);
+    rpc ProjectHealth(ProjectHealthRequest) returns (ProjectHealthResponse);
+
+    // Resource stats
+    rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+
+    // Host debugging (runs command on VM, not inside a container)
+    rpc ExecHost(ExecHostRequest) returns (ExecHostResponse);
+}
+
+// Container messages
+message StartContainerRequest {
+    string project_id = 1;
+    string repo_path = 2;    // Path inside VM (VirtioFS mount point)
+    uint32 host_port = 3;    // Port to expose
+    string image = 4;        // Container image (e.g., "node:20-alpine")
+    string cmd = 5;          // Command to run (smart entrypoint with conditional npm install)
+    uint32 internal_port = 6; // Port the app listens on inside container
+}
+
+message StartContainerResponse {
+    string container_id = 1;
+    uint32 port = 2;
+}
+
+message StopContainerRequest {
+    string project_id = 1;
+}
+
+message StopContainerResponse {}
+
+message RemoveContainerRequest {
+    string project_id = 1;
+}
+
+message RemoveContainerResponse {}
+
+message ContainerStatusRequest {
+    string project_id = 1;
+}
+
+message ContainerStatusResponse {
+    string container_id = 1;
+    string name = 2;
+    string status = 3;  // "running", "exited", "created", etc.
+}
+
+message ListContainersRequest {}
+
+message ListContainersResponse {
+    repeated ContainerStatusResponse containers = 1;
+}
+
+// Log streaming
+message StreamLogsRequest {
+    string project_id = 1;
+    bool follow = 2;
+    uint32 tail = 3;  // Number of lines from end (0 = all)
+}
+
+message StreamLogsResponse {
+    repeated LogEntry entries = 1;
+}
+
+message LogEntry {
+    string line = 1;
+    string stream = 2; // "stdout" or "stderr"
+    int64 timestamp = 3;
+}
+
+// File operations (for inotify workaround)
+message TouchFileRequest {
+    string path = 1; // Path inside VM to touch (triggers inotify)
+}
+
+message TouchFileResponse {}
+
+message EnsurePathRequest {
+    string path = 1;   // Absolute path inside VM
+    bool is_dir = 2;   // true => ensure dir exists, false => ensure file exists
+}
+
+message EnsurePathResponse {}
+
+message RemovePathRequest {
+    string path = 1;      // Absolute path inside VM
+    bool recursive = 2;   // Remove directory recursively when true
+}
+
+message RemovePathResponse {}
+
+message RenamePathRequest {
+    string old_path = 1;  // Existing absolute path inside VM
+    string new_path = 2;  // Destination absolute path inside VM
+}
+
+message RenamePathResponse {}
+
+// Health
+message PingRequest {}
+
+message PingResponse {
+    string version = 1;
+    bool fs_ops_v2 = 2; // Supports EnsurePath/RemovePath/RenamePath RPCs
+}
+
+// Project health (orchestrator polling)
+message ProjectHealthRequest {
+    string project_id = 1;
+    uint32 port = 2;
+}
+
+message ProjectHealthResponse {
+    string container_state = 1;  // "none", "running", "exited"
+    int32 exit_code = 2;         // set when exited
+    bool http_reachable = 3;     // TCP probe to 127.0.0.1:port
+}
+
+// Resource stats
+message GetStatsRequest {}
+
+message GetStatsResponse {
+    float cpu_percent = 1;
+    uint64 memory_used_mb = 2;
+    uint64 memory_total_mb = 3;
+    uint64 disk_available_mb = 4;
+    uint64 disk_total_mb = 5;
+}
+
+// Host execution (debugging VM-level issues when Podman is down)
+message ExecHostRequest {
+    string command = 1;  // Shell command to run on VM host via sh -c
+}
+
+message ExecHostResponse {
+    int32 exit_code = 1;
+    string stdout = 2;
+    string stderr = 3;
+}

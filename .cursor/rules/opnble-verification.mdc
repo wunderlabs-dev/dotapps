@@ -1,0 +1,25 @@
+---
+description: Verify before claiming Opnble work is done
+alwaysApply: true
+---
+
+# Verification before "done"
+
+Do not say "fixed", "ready", "passing", or "done" without running the matching gate and reading its output.
+
+## Pick the narrowest gate
+
+| Touched files | Run |
+|---------------|-----|
+| `src/web/**/*.{ts,tsx,css}` only | `cd src/web && pnpm check` (Biome + ESLint + tsc + Vitest) |
+| `src/tauri/**/*.rs` or `src/agent/**/*.rs` only | `make lint-rust` then `make test` (or the `rust-validate` skill) |
+| Both stacks, or unsure | `make check` then `make test-all` |
+| Docs / rules / Make / scripts only | None required, unless a script changed CI behavior |
+
+## Mandatory before commit
+
+Before committing in Cursor, run the gate above manually, paste the relevant pass/fail line into the assistant message, then commit.
+
+## What "evidence" means
+
+Quote the actual command and the **exit code or last line of output**. "I ran the tests" without output is not evidence.

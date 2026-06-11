@@ -1,0 +1,214 @@
+---
+description: Rust Tauri host + VM agent rules, Clippy, style, modules
+globs:
+  - src/tauri/**/*.rs
+  - src/agent/**/*.rs
+alwaysApply: false
+---
+
+# Rust Backend Rules
+
+## Commands
+
+```bash
+make lint-rust        # clippy --all-targets -D warnings (both crates)
+make fmt-check        # cargo fmt --check
+make check            # full pipeline (frontend + rust lint + fmt)
+cargo fmt --all       # format all Rust code
+cd src/tauri && cargo test  # run Rust tests
+```
+
+## Quality Gate
+
+Enforced by workspace `Cargo.toml` lints. CI fails on any violation.
+
+| Layer | Level | What |
+|---|---|---|
+| `clippy::pedantic` | deny | Full pedantic group as baseline |
+| Pedantic overrides | allow | `module_name_repetitions`, `must_use_candidate`, `missing_errors_doc`, `missing_panics_doc` |
+| `unwrap_used` | deny | Use `.expect("reason")` or `?` |
+| `todo`, `dbg_macro` | deny | No dev artifacts in production |
+| `print_stdout`, `print_stderr` | deny | Use `tracing` (tauri) or `log` (agent) |
+| `wildcard_enum_match_arm` | deny | Exhaustive matching |
+| `indexing_slicing` | deny | Use `.get()`, `.first()`, slice patterns |
+| `clone_on_ref_ptr` | deny | `Arc::clone(&x)` not `x.clone()` |
+| `allow_attributes_without_reason` | deny | Document every `#[allow]` |
+| `uninlined_format_args` | deny | `format!("{x}")` not `format!("{}", x)` |
+| `as_conversions` | deny | Use `TryFrom`/`From`, not `as` casts |
+| `panic` | deny | Return `Result`, let callers decide error handling |
+| `string_add` | deny | Use `format!` or `push_str`, not `+` |
+| `rc_buffer`, `rc_mutex` | deny | Prevent double-indirection anti-patterns |
+| `empty_structs_with_brackets` | deny | ZST idiom: `struct S;` not `struct S {}` |
+| `rest_pat_in_fully_bound_structs` | deny | No hidden fields in struct destructuring |
+| `implicit_clone` | deny | Explicit `.clone()` over implicit coercion |
+| `unsafe_code` | deny | No unsafe anywhere |
+| `std::sync::Mutex` | disallowed (tauri) | Per-module `#![allow]` for sync-only files. Agent crate is sync-only, no ban. |
+
+Complexity thresholds (clippy.toml): cognitive 30, function args 7, function lines 120, bool params 2.
+
+Disallowed methods (clippy.toml): `std::env::set_var`, `std::env::remove_var` (not thread-safe).
+
+Escape hatch: `#[expect(clippy::lint_name, reason = "...")]` per-site. Every suppression must have a reason.
+
+`must_use_candidate` is allowed to avoid noise. Manually annotate `#[must_use]` on Result-returning functions and builders.
+
+## Microsoft Rust Guidelines Alignment
+
+Use the `opnble-rust-guidelines` skill when Microsoft Pragmatic Rust Guidelines are relevant. Local rules remain authoritative when stricter or more specific.
+
+Adopted themes:
+
+- `M-LINT-OVERRIDE-EXPECT`: prefer `#[expect(..., reason = "...")]` for intentional lint exceptions
+- `M-LOG-STRUCTURED`: use `tracing` in the Tauri host and `log` in the VM agent
+- `M-PANIC-IS-STOP`, `M-PANIC-ON-BUG`: panics are for programming bugs only; Opnble additionally denies explicit `panic`
+- `M-UNSAFE`, `M-UNSAFE-IMPLIES-UB`, `M-UNSOUND`: Opnble denies unsafe code
+- `M-DONT-LEAK-TYPES`: wrap third-party errors and transport types behind domain types
+- `M-TYPES-SEND`: keep async and cross-thread types `Send` unless there is a concrete reason not to
+
+Selective themes:
+
+- Do not introduce `anyhow`, `eyre`, or a global allocator just because upstream permits or suggests them
+- Use canonical doc sections for public reusable APIs and unsafe boundaries, not every private app helper
+
+## Cosmetic Discipline
+
+Adapted from [Canonical Rust Best Practices](https://canonical.github.io/rust-best-practices/).
+
+### Spacing and Grouping
+
+- No blank line between a variable declaration and the block that uses it
+- Blank line between distinct logical blocks
+- Don't interleave unrelated code; group interdependent statements together
+- Define closures near their use site when they capture variables; use standalone `fn` when they don't
+
+### Naming
+
+- Consistent word order across APIs (pick `verb_noun` and keep it)
+- One name per concept: don't use "remove" and "delete" for the same operation
+- Don't encode types in names (`user` not `user_string`)
+- Never use "Manager", "Handler", "Helper", "Utils", or "Service" as type name suffixes. These are non-names that hide missing design. Name by role: `ProjectSyncer` not `SyncManager`, `VmGateway` not `VmManager`
+- Pattern match variables: reuse the original field name or its first letter
+- Lifetime names derived from what they reference, not `'a, 'b`: `'cursor`, `'tree`
+- Builders: `MyType::builder()` returns `MyTypeBuilder`, `.build()` returns `Result<MyType>`. Builder takes `self` (ownership), not `&mut self`
+
+### Imports
+
+- Nested import syntax: merge first n-1 path segments, group only leaves (`use std::io::{Read, Write}`)
+- `use self::module` for child module re-exports (prevents future name clashes with dependencies)
+
+### Pattern Matching
+
+- Exhaustive struct destructuring to catch future field additions (use `field: _` for unused fields)
+- Avoid tuple indexing (`.0`, `.1`): destructure into named variables instead (newtype `.0` is fine)
+- Don't destructure params in function signatures; do it on the first line. Closures are exempt
+- Don't pattern-match references to Copy types: use `*x` not `&x`
+
+### Code Style
+
+- Use `Self` wherever possible in impl blocks
+- `Vec::new()` over `vec![]` for empty vectors (guaranteed no allocation)
+- Scope `let mut` tightly; prefer functional transforms (`filter().count()`) over mutable counters
+- Don't chain method calls on closing `}` / `)` / `]`; bind to a variable first
+- Avoid unassigned `let` declarations; return values from computation blocks
+- Shadowing: at most once across types in same scope; never shadow types
+- Inline format args: `format!("{path}")` not `format!("{}", path)` (enforced by clippy)
+- If generic constraints exceed 30 chars in angle brackets, use a `where` clause
+- Prefer `Iterator::collect()` over `Foo::from_iter()`
+
+### Error Messages
+
+- Start with a verb, usually prefixed with "cannot", always lowercase
+- Error struct fields: `reason` for explanatory strings, `source` for wrapped errors
+
+### Ordering
+
+- Derive order: `Copy` first, then std traits alphabetical, then third-party alphabetical, single `#[derive(...)]`
+- Impl block order: `impl Type`, then `impl StdTrait for Type`, `impl LocalTrait for Type`, `impl ThirdPartyTrait for Type`
+- Struct fields by visibility: `pub` first, `pub(crate)` second, private last
+- Declarations within blocks: `const`, `static`, `let`, `let mut`
+
+### Functions
+
+- End `()`-returning expressions with `;`; use explicit `Ok(())` for `Result<()>`
+- Hide generic complexity: prefer `impl Trait` and lifetime elision (`'_`)
+- Four or more related parameters (especially `Arc<dyn T>` dependencies) is a struct waiting to be born. Group related deps into a type and inject that
+
+### Doc Comments
+
+The cross-cutting rule lives in `.cursor/rules/opnble-core.mdc` ("Comments"). Rust-specific reinforcement:
+
+- Public rustdoc: first sentence at most two wrapped lines, explains *when* to use the item.
+- Use definite articles ("the given `delta`") not indefinite ("a given amount").
+- Private `fn` rustdoc: zero or one short sentence. No flow descriptions, no numbered steps, no rationale paragraphs that the function body already contains.
+- Don't restate the signature. `/// Returns the path` above `pub fn path(&self) -> &Path` adds nothing.
+- Don't write `// 1. Do X`, `// 2. Do Y`, `// 3. Do Z` inside a function. If a body needs that scaffolding, split it into named helpers and let the call sites speak.
+- A load-bearing invariant comment ("the guard must not survive any `.await`") is allowed when the constraint is not visible from the types alone. One line.
+- No code-narrating comments. `// drop guard before await` above `drop(guard);` is forbidden; the line is already self-evident, so the comment is noise.
+
+## Idiomatic Patterns
+
+- **Prefer `&str` parameters over `String`**: accept borrows in function inputs, let callers decide ownership. Use `String` only when the function needs to own the data
+- **Expression-oriented style**: end blocks with a value expression, minimize explicit `return`. Use `return` only for early-exit guard clauses
+- **Iterator chains over imperative loops**: prefer `.iter().filter().map().collect()` over `for` loops with mutable accumulators. Iterators compose, optimize, and communicate intent
+- **Closure capture with `move`**: use `move` closures when transferring ownership to spawned tasks or threads. Default closures borrow; understand `Fn` vs `FnMut` vs `FnOnce` distinctions
+
+## Error Handling
+
+- Never `.unwrap()`. Use `.expect("reason")` for truly-unreachable cases (system clock, mutex poison). Use `?` for everything else
+- Custom error types with `thiserror`. `AppError` derives `Clone + Serialize` for Tauri IPC
+- Never leak third-party error types: wrap behind `AppError` variants
+- Enrich `From` impls with structured context (error kind, class, HTTP status) instead of flat `.to_string()`
+- If the same `map_err` appears more than once, add a `From` impl. Repeated `map_err` is a missing conversion
+- Use `TryFrom` instead of `as` for numeric conversions
+- Use `.get()` instead of `[i]` indexing
+- Validate at construction time (parse, don't validate)
+
+## Async and Concurrency
+
+- Never hold Tokio Mutex guards across `.await` points
+- `select!` cancels non-winning branches. `try_join!` cancels remaining on first error
+- Use `tokio::sync::Mutex` for async code. `std::sync::Mutex` only for sync-only contexts (document why with `#![allow]`)
+- Spawn tasks for work that must complete regardless of parent lifetime
+
+## Types (project-specific)
+
+- Newtypes for domain distinctions: `ProjectId(String)` vs bare `String`
+- Enums over booleans for parameters
+- No `get_` prefix on getters: `fn status(&self)` not `fn get_status(&self)`
+- Tauri command handlers are exceptions (receive owned deserialized values, use `#[expect(clippy::needless_pass_by_value)]`)
+
+## Code Structure
+
+- `mod.rs` files contain only module declarations and re-exports, no definitions
+- Import groups: (1) std, (2) third-party, (3) crate-local. Blank line between groups
+- Files read top-to-bottom: public API first, helpers below
+
+## Structure
+
+- `app/` - Bootstrap, command registration, shutdown, window management, platform setup
+- `auth/` - Token storage (OS keychain), GitHub OAuth, provider detection
+- `infrastructure/` - Git (libgit2), keychain abstraction, async runtime
+- `projects/` - CRUD, import, runner (start/stop), state persistence, git sync
+- `settings/` - App settings persistence
+- `tunnel/` - Cloudflare Tunnel sharing (TunnelCoordinator, cloudflared process management)
+- `vm/` - Platform-specific VM management (vfkit, QEMU, WSL2), `VmGateway` (the host-to-VM bridge), `vm/error.rs` defines `VmError`
+- `error.rs` - Custom error types with `thiserror`
+- `constants.rs` - Shared constants
+- `ssh.rs` - SSH key generation and management
+- `tray.rs` - System tray icon, menu, and VM status tracking (`TrayState`)
+
+## Platform Differences
+
+Conditional compilation (`#[cfg(target_os = "...")]`):
+
+- **macOS ARM**: vfkit (Virtualization.framework wrapper) + Podman in VM
+- **macOS Intel**: QEMU + Podman in VM
+- **Windows**: WSL2 preferred, QEMU fallback
+- **Linux**: Native Podman (no VM needed)
+
+## Testing
+
+- Test real behavior, not mocked behavior
+- All error paths must have tests
+- Test output must be pristine. Capture and validate expected errors
+- `allow-unwrap-in-tests`, `allow-expect-in-tests`, `allow-dbg-in-tests` enabled in clippy.toml

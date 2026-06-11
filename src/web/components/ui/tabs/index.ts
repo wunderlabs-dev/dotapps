@@ -1,0 +1,10 @@
+export type { TabsProps } from "./tabs";
+export { Tabs } from "./tabs";
+export type { TabsContentProps } from "./tabs-content";
+export { TabsContent } from "./tabs-content";
+export type { TabsVariant } from "./tabs-context";
+export { tabsVariants } from "./tabs-context";
+export type { TabsListProps } from "./tabs-list";
+export { TabsList } from "./tabs-list";
+export type { TabsTriggerProps } from "./tabs-trigger";
+export { TabsTrigger } from "./tabs-trigger";

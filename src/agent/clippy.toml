@@ -1,0 +1,29 @@
+# Clippy configuration for Opnble Agent crate
+# Shares workspace lint config with Tauri crate.
+# NOTE: No disallowed-types for std::sync::Mutex (ttrpc handlers are sync, Mutex is correct here)
+
+# Disallowed methods (thread safety)
+disallowed-methods = [
+    { path = "std::env::set_var", reason = "not thread-safe; use structured config instead" },
+    { path = "std::env::remove_var", reason = "not thread-safe; use structured config instead" },
+]
+
+# Complexity thresholds
+cognitive-complexity-threshold = 30
+too-many-arguments-threshold = 7
+too-many-lines-threshold = 120
+type-complexity-threshold = 250
+
+# Large enum variant size before suggesting Box (bytes)
+enum-variant-size-threshold = 200
+
+# Large error type threshold (bytes)
+large-error-threshold = 128
+
+# Maximum bool params before linting
+max-fn-params-bools = 2
+
+# Tests get relaxed rules
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true

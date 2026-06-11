@@ -1,0 +1,32 @@
+---
+description: Default to Cursor Canvas for visual or interactive output
+alwaysApply: true
+---
+
+# Canvas-first for visual artifacts
+
+When the output of a task is something the user will scan visually or interact with, render it in a Cursor Canvas instead of dumping markdown into chat. Canvas is the deliverable for these patterns; treat a markdown table or code block as the wrong tool.
+
+## Use Canvas for
+
+- PR review queues (status per PR, decision buttons, links)
+- Multi-step plans you and the user will iterate on
+- Status dashboards (VM state, project list, agent runs)
+- Architecture diagrams, file maps, sequence walkthroughs
+- MCP tool output where the data is the deliverable (lists, queries, runs)
+- Anything with more than two parallel axes (PR x file x verdict, project x action x state)
+- Any response that would otherwise become a 30+ row markdown table
+
+## How
+
+Read the canvas skill first (`Skill` tool, fullPath includes `.cursor/skills-cursor/canvas/SKILL.md` or the global path). The skill is the source of truth for `.canvas.tsx` file shape, imports, and SDK usage.
+
+## Do not use Canvas for
+
+- Single-shot answers ("what time is it", "what's in this file")
+- Short code edits that fit in a normal review
+- Pure prose explanations of a concept
+
+## Heuristic
+
+Before writing a markdown table with more than five rows or three columns, stop and ask whether the user would rather click and filter it. If yes, use Canvas.

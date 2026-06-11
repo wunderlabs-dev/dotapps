@@ -1,0 +1,62 @@
+name: Crash
+description: The Opnble app crashed or refused to launch
+title: "[Crash] "
+labels: [crash, beta]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A crash is a separate category from a bug because the diagnostics path
+        is different. If you can still open the app, please file a Bug report
+        instead and export diagnostics from Settings.
+
+        If the app crashed during launch or while running:
+        - Check for `~/.opnble/logs/panic.log` and paste its tail below.
+        - Check the most recent `~/.opnble/logs/opnble.log.YYYY-MM-DD` and
+          paste the last ~50 lines.
+
+  - type: input
+    id: version
+    attributes:
+      label: Opnble version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: when
+    attributes:
+      label: When did it crash?
+      placeholder: |
+        Examples:
+        - On launch, before any window appeared
+        - Right after clicking Import
+        - While downloading the VM image
+    validations:
+      required: true
+
+  - type: textarea
+    id: panic-log
+    attributes:
+      label: panic.log contents
+      description: Contents of `~/.opnble/logs/panic.log` if present. Wrap in a code block.
+      render: text
+
+  - type: textarea
+    id: recent-log
+    attributes:
+      label: Recent host log tail
+      description: Tail (~50 lines) of the most recent `~/.opnble/logs/opnble.log.YYYY-MM-DD`. Wrap in a code block.
+      render: text

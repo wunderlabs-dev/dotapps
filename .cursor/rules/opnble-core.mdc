@@ -1,0 +1,103 @@
+---
+description: Opnble-wide product context, principles, Makefile, paths, architecture
+alwaysApply: true
+---
+
+# Opnble: Project Rules
+
+## What is Opnble?
+
+Native desktop app (macOS/Linux/Windows) that lets non-technical users run React/Next.js projects locally from git repos. Everything bundled: no Node.js, git, or Docker knowledge needed.
+
+## Writing
+
+- Never use em dashes. Use colons for definitions, commas or parentheses for asides.
+
+## Engineering Principles
+
+- DRY: extract shared patterns, no copy-paste. If the same `map_err` closure appears more than once, implement `From<SourceError> for TargetError` instead
+- YAGNI: no speculative features or unused abstractions
+- Fail fast: validate inputs early, return/throw before the happy path
+- Dependency injection: pass dependencies in, don't import singletons. No global mutable state: `static`, `OnceLock`, `lazy_static` hold only truly immutable config. Mutable shared state belongs in a struct managed by the framework (Tauri `State<>`, React context)
+- Errors are values: structured `AppError` types with context, no bare `catch {}`
+- Name by what it does in the domain, not how it's implemented
+
+## Comments
+
+Comments are a last resort. The first move is always: rename, restructure, extract a function. Reach for a comment only when the code itself cannot carry the meaning.
+
+### Bias toward zero comments
+
+Most code in this repo should have zero inline comments. A function whose name and structure clearly state intent does not need narration. If you feel the urge to write a comment, ask:
+
+1. Can a better name remove the need? Rename the variable, function, or type.
+2. Can extracting a helper remove the need? A well-named `fn` is a comment.
+3. Can the structure itself communicate? Scope blocks, early returns, and types often replace comments.
+
+Only after those three fail does a comment earn its place.
+
+### When a comment is allowed
+
+- Explains *why* a non-obvious decision was made (a trade-off, a workaround, a constraint from outside the file).
+- Documents a load-bearing invariant that the type system cannot enforce, that a reviewer must verify (e.g. "no `.await` while this guard is alive").
+- Cross-references an external bug, RFC, spec, or upstream issue.
+- Public API rustdoc on items that are genuinely public outside their crate.
+
+### When a comment is forbidden
+
+- Narrates what the next line of code does. `// increment counter` above `i += 1`.
+- Restates structure. `// 1. Validate input`, `// 2. Process`, `// 3. Return result` inside one function.
+- Describes flow that the type signature already shows. `// returns the project's path`.
+- References temporal state: "TODO later", "in a future PR", "used by the install rewrite", "fixed the mutex bug". Code is not a changelog.
+- Apologizes or hedges: "this is hacky", "not sure if this is right".
+- Multi-paragraph rustdoc on a private helper. Private API rustdoc is one short sentence at most, or none.
+
+### Sizes
+
+- Public rustdoc first sentence: at most two wrapped lines, says when to call.
+- Private fn rustdoc: zero or one short sentence.
+- Inline comment: one line, explaining a constraint that is not visible in the code.
+- Numbered step comments inside a function body are an anti-pattern. If the steps need labels, the steps are probably separate functions.
+
+## Architecture
+
+### Three Codebases
+
+1. **Frontend** (`src/web/`) — React 19 + TypeScript + Tailwind 4 + Vite 7. Stack-specific rules: Cursor rule `web-frontend.mdc` (path-scoped to `src/web/`).
+2. **Backend** (`src/tauri/`) — Rust (Tauri 2.x). Stack-specific rules: Cursor rule `rust-backend.mdc` (path-scoped to `src/tauri/` and `src/agent/`).
+3. **VM Agent** (`src/agent/`) — Rust gRPC server (ttrpc + protobuf) running inside the VM. Handles container lifecycle, process streams, file ops, and signals. No async/await (uses native nix syscalls). Shares Rust conventions with the Tauri host (`rust-backend.mdc`).
+
+### Data Flow
+
+1. User adds repo URL → React hook calls Tauri command
+2. Rust clones via libgit2 to `~/.opnble/repos/<project-id>/`
+3. Container manager starts Node.js with repo mounted
+4. Logs stream via Tauri events (`project-log-{id}`)
+5. Frontend renders in embedded webview
+
+## Tooling
+
+The Makefile is the single entrypoint. Forbidden raw commands and their `make` equivalents live in the always-apply rule `opnble-makefile.mdc`. Verification gates (when to run `make check`, `pnpm check`, `make lint-rust`) live in `opnble-verification.mdc`.
+
+A `.cursor/hooks/makefile-guard.sh` shell hook asks before running raw `pnpm dev`, `cargo tauri dev`, `pkill -f tauri/vite/vfkit`, or direct hypervisor calls. Read-only commands (`pnpm check`, `cargo test`, `git`, `rg`, etc.) pass silently.
+
+CI runs clippy, fmt check, and tests on all 4 platforms (`.github/workflows/release.yml`).
+
+## Subagents
+
+Spawn `Task` subagents only when one of the following is true:
+
+- the work has 2+ independent threads worth running in parallel (different directories, no shared state)
+- the question requires broad codebase exploration that would otherwise burn parent-context tokens
+- you need a clean context for a security or rules audit
+
+Do not spawn subagents for single-file mechanical edits, single-grep questions, or work that needs to stay in lockstep with the parent thread.
+
+## File Paths
+
+- User data: `~/.opnble/`
+- Cloned repos: `~/.opnble/repos/`
+- App state: `~/.opnble/state.json`
+- VM base image: `~/.opnble/vm/alpine-base.img` (read-only, built by `make vm-image`)
+- VM runtime clone: `~/.opnble/vm/alpine.img` (APFS CoW clone, disposable)
+- VM EFI store: `~/.opnble/vm/vfkit-efi-store` (per-session, disposable)

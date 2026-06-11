@@ -1,0 +1,43 @@
+name: Tauri Command Parity
+
+on:
+  pull_request:
+    paths:
+      - "src/tauri/src/app/register.rs"
+      - "src/tauri/src/app/platform/**"
+      - "src/tauri/src/app/integrity.rs"
+      - "src/tauri/src/app/updater.rs"
+      - "src/tauri/src/app/window_commands.rs"
+      - "src/tauri/src/projects/commands.rs"
+      - "src/tauri/src/auth/commands.rs"
+      - "src/tauri/src/settings/commands.rs"
+      - "src/tauri/src/tunnel/commands.rs"
+      - "src/tauri/src/publish/commands.rs"
+      - "scripts/check-tauri-command-parity.sh"
+      - ".github/workflows/tauri-command-parity.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/tauri/src/app/register.rs"
+      - "src/tauri/src/app/platform/**"
+      - "src/tauri/src/app/integrity.rs"
+      - "src/tauri/src/app/updater.rs"
+      - "src/tauri/src/app/window_commands.rs"
+      - "src/tauri/src/projects/commands.rs"
+      - "src/tauri/src/auth/commands.rs"
+      - "src/tauri/src/settings/commands.rs"
+      - "src/tauri/src/tunnel/commands.rs"
+      - "src/tauri/src/publish/commands.rs"
+      - "scripts/check-tauri-command-parity.sh"
+      - ".github/workflows/tauri-command-parity.yml"
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify command parity
+        run: bash ./scripts/check-tauri-command-parity.sh

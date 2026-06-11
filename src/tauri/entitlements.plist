@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Tauri applies this file to the host app and every externalBin sidecar
+        (vfkit, gvproxy, cloudflared). Required to launch under the hardened
+        runtime, which is in turn required for notarization.
+
+        See docs/beta-implementation-plan.md Phase 1 Track 1.3 for rationale.
+    -->
+
+    <!-- vfkit talks to Apple's Virtualization.framework. Without this the
+         kernel returns HV_DENIED at hv_vm_create time. Confirmed by reading
+         vfkit's own vf.entitlements upstream. -->
+    <key>com.apple.security.virtualization</key>
+    <true/>
+
+    <!-- Outbound HTTP/HTTPS/WebSocket: updater check, GitHub OAuth, tunnel
+         API. Without this the hardened runtime blocks outbound network. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Inbound listeners: the in-VM agent socket, gvproxy port forwards,
+         cloudflared tunnel ingress callbacks. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- WebKit may use JIT inside the webview. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- gvproxy maps executable pages it did not produce; some Tauri
+         versions need this for the embedded webview process too. -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- Bundled helpers link against frameworks under different team IDs
+         (notably the system libraries cloudflared depends on). -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

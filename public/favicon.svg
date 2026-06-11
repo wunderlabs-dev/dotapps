@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#3B82F6"/>
+
+  <!-- Play triangle (representing "running") -->
+  <path d="M200 160 L200 352 L360 256 Z" fill="white"/>
+
+  <!-- Small terminal/code bracket on the left side -->
+  <path d="M120 200 L80 256 L120 312" stroke="white" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"/>
+
+  <!-- Small terminal/code bracket on the right side -->
+  <path d="M392 200 L432 256 L392 312" stroke="white" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"/>
+</svg>

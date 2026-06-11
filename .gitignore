@@ -1,0 +1,57 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Rust build artifacts
+target/
+
+# Build resources (generated at build time)
+src/tauri/resources/*
+!src/tauri/resources/.gitkeep
+src/tauri/resources/windows/alpine-wsl.tar
+# Tauri externalBin sidecars (downloaded by scripts/prepare-resources.sh)
+src/tauri/binaries/*
+!src/tauri/binaries/.gitkeep
+!src/tauri/binaries/README.md
+
+# Codex local runtime artifacts
+.codex-run/
+
+# Claude Code local runtime artifacts (worktrees, plans, transcripts)
+.claude/
+
+# Wrangler local state (Cloudflare Worker dev simulator + R2 emulator)
+.wrangler/
+
+# Git worktrees
+.worktrees/
+
+# VM image build artifacts
+build/
+
+# Design/plan documents (not shipped). Pattern is `docs/*` not `docs/` so the
+# directory itself is traversable and per-file exceptions below work.
+docs/*
+# Exception: release-setup.md is referenced by Rust comments and must stay tracked.
+!docs/release-setup.md

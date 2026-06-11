@@ -1,0 +1,35 @@
+name = "opnble-tunnel-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-25"
+
+routes = [
+  { pattern = "tunnel.openable.dev/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
+  { pattern = "openable.dev/updates/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
+  { pattern = "openable.dev/vm/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
+  { pattern = "openable.dev/releases/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" }
+]
+
+[vars]
+TUNNEL_DOMAIN = "openable.dev"
+
+# Cloudflare R2 bucket holding the VM base image and its manifest.
+# Provisioned manually: `wrangler r2 bucket create opnble-vm`.
+# Until the bucket exists the /vm/* routes return 500; create the bucket
+# before publishing any beta DMG that depends on the downloader.
+[[r2_buckets]]
+binding = "VM_IMAGES"
+bucket_name = "opnble-vm"
+
+# Cloudflare R2 bucket holding signed release artifacts. The release CI
+# uploads bundles + signatures under `releases/<tag>/<file>` and refreshes
+# the channel manifests at `releases/stable/latest.json` and
+# `releases/beta/latest.json`.
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "opnble-releases"
+
+# Secrets (set via `wrangler secret put`):
+# CF_API_TOKEN - Cloudflare API token (Zone:DNS:Edit + Account:Cloudflare Tunnel:Edit)
+# CF_ACCOUNT_ID - Cloudflare account ID
+# CF_ZONE_ID - Zone ID for openable.dev
+# APP_API_KEY - Shared secret for authenticating desktop app requests

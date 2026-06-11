@@ -1,0 +1,37 @@
+# Clippy configuration for Opnble Tauri crate
+# Enforces idiomatic Rust patterns as a strict quality gate.
+#
+# Rules derived from: idiomatic-rust collection, Rust API Guidelines,
+# Canonical Best Practices, and Clippy documentation.
+
+# Complexity thresholds
+cognitive-complexity-threshold = 30
+too-many-arguments-threshold = 7
+too-many-lines-threshold = 120
+type-complexity-threshold = 250
+
+# Large enum variant size before suggesting Box (bytes)
+enum-variant-size-threshold = 200
+
+# Large error type threshold (bytes)
+large-error-threshold = 128
+
+# Maximum bool params before linting
+max-fn-params-bools = 2
+
+# Disallowed methods - enforce correct alternatives
+# Note: std::thread::sleep is NOT banned because VM/SSH code is synchronous
+disallowed-methods = [
+    { path = "std::env::set_var", reason = "not thread-safe; use structured config instead" },
+    { path = "std::env::remove_var", reason = "not thread-safe; use structured config instead" },
+]
+
+# Disallowed types - enforce async-safe primitives
+disallowed-types = [
+    { path = "std::sync::Mutex", reason = "use tokio::sync::Mutex for async code, or document why std::sync::Mutex is correct here" },
+]
+
+# Tests get relaxed rules
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true

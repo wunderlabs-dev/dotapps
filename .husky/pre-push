@@ -1,0 +1,2 @@
+echo "[pre-push] running make check (use --no-verify to skip)..."
+make check

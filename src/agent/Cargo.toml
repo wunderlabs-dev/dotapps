@@ -1,0 +1,24 @@
+[package]
+name = "opnble-agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ttrpc = "0.9"
+protobuf = "3"
+nix = { version = "0.29", features = ["signal"] }
+filetime = "0.2"
+libc = "0.2"
+log = "0.4"
+env_logger = "0.11"
+bollard = "0.16"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+futures-util = "0.3"
+vsock = "0.5"
+thiserror = "1"
+
+[lints]
+workspace = true
+
+[build-dependencies]
+ttrpc-codegen = "0.6"

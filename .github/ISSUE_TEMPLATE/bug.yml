@@ -1,0 +1,86 @@
+name: Bug report
+description: Something didn't work in the Opnble beta
+title: "[Beta] "
+labels: [bug, beta]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping the beta along. The single most useful thing you
+        can attach is a **diagnostics zip** from Settings → Diagnostics →
+        Export. It contains the host logs, VM-side logs, and a redacted
+        copy of the app state, all bundled.
+
+        We strip GitHub OAuth tokens and any field whose key looks like a
+        secret before zipping, so the bundle is safe to drop into a public
+        issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: Opnble version
+      description: From Settings → About, or your tag name.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: "macOS 14.5 / Windows 11 23H2 / Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, in order?
+      placeholder: |
+        1. Open Opnble
+        2. Click Import
+        3. Paste the repo URL https://github.com/owner/repo
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The project should clone and start running on a local port.
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: An error banner said "Failed to start virtual machine".
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics zip
+      description: |
+        Drag the `opnble-diagnostics-*.zip` file from Settings → Diagnostics → Export onto this textarea. GitHub will upload it as an attachment.
+        If you cannot launch Opnble at all, paste the contents of `~/.opnble/logs/opnble.log.YYYY-MM-DD` (the most recent file) inside a code block instead.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Things that did or did not work around the failure, related symptoms, anything you'd want to know if our roles were swapped.

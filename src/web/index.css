@@ -1,0 +1,232 @@
+@import url("https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@import "tailwindcss";
+
+@theme {
+  /* Font families */
+  --font-sans: "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Colors: Opnble dark palette derived from Figma specs */
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-button: var(--border-button);
+  --color-pill-bg: var(--pill-bg);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-muted: var(--accent-gold-muted);
+  --color-accent-success: var(--accent-success);
+  --color-accent-warning: var(--accent-warning);
+  --color-accent-error: var(--accent-error);
+  --color-terminal-green: var(--terminal-green);
+  --color-terminal-red: var(--terminal-red);
+  --color-terminal-yellow: var(--terminal-yellow);
+  --color-terminal-blue: var(--terminal-blue);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.6);
+
+  /* Sizing tokens for design-system components */
+  --size-detail-card: 100px;
+  --size-framework-card: 186px;
+  --size-last-update-card: 158px;
+  --size-toast-min-w: 250px;
+  --max-h-modal: 90vh;
+
+  /* Font size tokens */
+  --text-2xs: 10px;
+  --text-heading-xl: 40px;
+
+  /* Layout tokens */
+  --max-w-import-form: 540px;
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 3rem;
+  --radius-full: 9999px;
+}
+
+/* Opnble Design System: CSS Variables from Figma specs */
+:root {
+  /* Backgrounds (gradient applied in components, flat fallback here) */
+  --background: #191919;
+  --surface: #252525;
+  --surface-elevated: #303030;
+  --surface-hover: #3a3a3a;
+
+  /* Text */
+  --foreground: #ffffff;
+  --foreground-muted: #b5b5b5;
+  --foreground-subtle: #808080;
+
+  /* Borders */
+  --border: rgba(181, 181, 181, 0.3);
+  --border-subtle: rgba(181, 181, 181, 0.1);
+  --pill-bg: rgba(181, 181, 181, 0.2);
+
+  /* Accent: gold (primary CTA from Figma #C17812) */
+  --accent-primary: #c17812;
+  --accent-gold: #c17812;
+  --accent-gold-muted: #daae71;
+
+  /* Semantic: bright saturated colors from Figma */
+  --accent-success: #64ffb1;
+  --accent-warning: #c17812;
+  --accent-error: #ff6467;
+
+  /* Terminal palette (from Figma specs) */
+  --terminal-green: #64ffb1;
+  --terminal-red: #ff6467;
+  --terminal-yellow: #ffc525;
+  --terminal-blue: #3b82f6;
+
+  /* Button borders */
+  --border-button: #535353;
+
+  /* Gradients */
+  --gradient-surface: linear-gradient(107.8deg, #252525 0%, #191919 20.19%);
+
+  /* Card/panel effects */
+  --inset-bevel:
+    inset -1px -1px 0px rgba(255, 255, 255, 0.1), inset 1px 1px 0px rgba(255, 255, 255, 0.2);
+}
+
+/* Custom utilities */
+@utility bg-gradient-surface {
+  background: var(--gradient-surface);
+}
+
+@utility shadow-inset-bevel {
+  box-shadow: var(--inset-bevel);
+}
+
+@utility ridge-t {
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, white 20%, transparent);
+}
+
+@utility scrollbar-hidden {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Base Styles */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Hide scrollbars but keep functionality */
+@layer base {
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Typography */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+}
+
+/* Animations */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/makefile-guard.sh",
+        "matcher": "pnpm|cargo\\s+tauri|pkill|vfkit|qemu-system",
+        "timeout": 5
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/autoformat.sh",
+        "matcher": "Write|TabWrite",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/verify-on-stop.sh",
+        "timeout": 5,
+        "loop_limit": 1
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/session-context.sh",
+        "timeout": 5
+      }
+    ]
+  }
+}

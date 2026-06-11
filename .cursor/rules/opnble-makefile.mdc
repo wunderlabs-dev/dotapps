@@ -1,0 +1,30 @@
+---
+description: Makefile is the only entrypoint for Opnble dev workflows
+alwaysApply: true
+---
+
+# Makefile contract
+
+Use `make` for every dev workflow. Do **not** call the underlying tools directly: it bypasses the `~/.opnble/dev.lock` lockfile and corrupts VM state.
+
+## Forbidden → use this instead
+
+| Forbidden | Use |
+|-----------|-----|
+| `pnpm dev`, `pnpm run dev` | `make dev-frontend` (Vite alone) or `make dev-all` (Vite + Tauri) |
+| `cargo tauri dev` | `make dev` (Vite must already run) or `make dev-all` |
+| `cargo tauri build` | `make build` |
+| `pkill -f tauri`, `pkill -f vite`, `pkill -f vfkit` | `make kill-dev` |
+| `rm ~/.opnble/state.json` | `make reset-state` |
+| Manual VM image build | `make vm-image` (macOS), `make wsl-image` (Windows) |
+
+## Always allowed (no Make wrapper needed)
+
+- `make <target>` (any target)
+- Read-only Rust: `cargo check`, `cargo clippy`, `cargo fmt --check`, `cargo test`
+- Read-only frontend: `pnpm check`, `pnpm lint`, `pnpm test`, `pnpm format`, `pnpm install`, `pnpm exec biome ...`
+- `git`, `rg`, `cd`, `ls`, file edits
+
+## When unsure
+
+Run `make help` (or `make status`) instead of guessing. New dev needs that don't have a Make target are a Makefile gap: extend the Makefile rather than work around it.

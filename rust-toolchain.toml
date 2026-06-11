@@ -1,0 +1,18 @@
+[toolchain]
+# Pinned so local clippy matches CI clippy.
+#
+# Effect by environment:
+# - CI (`dtolnay/rust-toolchain@stable`): respects this file and installs
+#   the same channel. Catches new clippy lints before they hit prod.
+# - Local with rustup proxies (`~/.cargo/bin/cargo`) on PATH first: the
+#   proxies read this file and dispatch to the pinned toolchain.
+# - Local with Homebrew rust (`/opt/homebrew/bin/cargo`) on PATH first:
+#   ignores this file. To make `make check` reflect what CI sees:
+#     `brew unlink rust`   # or
+#     `export PATH="$HOME/.cargo/bin:$PATH"` in your shell rc.
+#
+# Bump intentionally via a separate hygiene PR after running
+# `make check` + `make test` against the new version locally.
+channel = "1.96.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

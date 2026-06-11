@@ -1,0 +1,28 @@
+# .cursorindexingignore: excludes files from Cursor's semantic index but
+# leaves them readable by the agent. Use this to keep @-mentions, Tab, and
+# semantic search focused on signal.
+
+# Build outputs and intermediate artifacts.
+target/
+dist/
+build/
+src/web/dist/
+
+# Worktrees: duplicate copies of the repo would dominate search.
+.worktrees/
+
+# Vendored dependencies.
+node_modules/
+
+# Large or low-signal files.
+PR_REVIEW_CANVAS.md
+*.log
+*.snap
+
+# Editor / IDE state.
+.idea/
+.vscode/
+
+# VM image staging.
+vm/build/
+src/tauri/resources/windows/alpine-wsl.tar

@@ -1,0 +1,272 @@
+---
+description: Frontend React/TS/Tailwind rules (src/web)
+globs:
+  - src/web/**/*.ts
+  - src/web/**/*.tsx
+  - src/web/**/*.css
+alwaysApply: false
+---
+
+# Frontend Rules
+
+## Code Style
+
+- No classes for business logic. Use hooks, pure functions, and component composition
+- No nesting beyond 2 levels inside a function body. Prefer early returns and small helpers
+- Max function length: 40 lines (skipBlankLines, skipComments)
+- Max cognitive complexity: 10 (enforced by sonarjs)
+- **No magic numbers/strings** (has subrules):
+  - **MUST extract** to named constants: values in hooks, utility functions, business logic, thresholds, and conversion factors (e.g., `CPU_WARN_THRESHOLD = 75`, `MB_PER_GB = 1024`, `POLL_INTERVAL_MS = 5000`)
+  - **MUST inline** (do NOT extract): single-use literals in JSX props, JSX children, SVG attributes, destructuring defaults, `className` values, and component configuration where the prop/attribute name provides context. Examples: `strokeWidth={1.75}`, `size={76}`, `sideOffset={6}`, `placeholder="Enter URL"`, `label="Online link"`, `className="min-w-0 flex-1"`, `<Typography>Import project</Typography>`
+  - **MUST extract** regardless of context: any string literal appearing 3+ times in the same file (enforced by `sonarjs/no-duplicate-string` with threshold 3)
+  - **Keep extracted** when a Record/map lookup is involved (e.g., `ON_TRACK[color]`, `VARIANT_CLASSES[variant]`, `SHARE_STATES.idle`)
+- No identical functions (extract shared logic)
+- No nested ternaries
+- No `any` types, no type assertions (`as Type`). Use type guards, `instanceof`, or narrowing
+- Use `unknown` at system boundaries (catch blocks, external API responses)
+- No `.then()`/`.finally()` chains: always use `async`/`await`. In non-async contexts (useEffect, event handlers), extract a named async function and call it directly
+- No `void` operator on function calls. Call fire-and-forget promises directly without `void`
+- No misused promises (don't pass async functions to onClick directly; wrap with `() => { fn(); }`)
+- No parameter reassignment (enforced by Biome)
+- Prefer `readonly` on class properties that aren't reassigned
+- No comments explaining *what*, only *why* when non-obvious
+- Double quotes, semicolons, trailing commas (enforced by Biome)
+- Named event handlers: define handlers as `const handleAction = ...`, never inline in JSX. Exception: one-liner prop adapters that forward a prop unchanged (`onChange={(e) => onChange(e.target.value)}`) are acceptable
+
+## TypeScript
+
+- Names are contracts: domain-meaningful, no `data`/`result`/`temp`
+- Prefer single-word names. Drop redundant prefixes (`allWarnings` -> `warnings`, `currentFiles` -> `files`). Context should carry the qualifier, not the name
+- No type names in identifiers (no Hungarian notation): avoid suffixes like `Map`, `Array`, `List`
+- Prefer `interface` for contracts and `type` for unions/aliases. For component props: use `interface` when props are a plain object shape; use `type` when props involve generics, intersection with HTML attributes, or conditional types
+- Discriminated unions over class hierarchies
+- Use `as const` constant maps for statuses/events and derive union types from them
+- Use `import type` for type-only imports
+- Arrow functions everywhere (`const fn = () => {}`), no `function` declarations (enforced by `func-style`)
+- No explicit return types: let TypeScript infer. Do not annotate `: ReactElement`, `: void`, etc. Exception: type guards require explicit `: value is Type`
+- `readonly` on data structures that should not mutate
+
+## Naming Conventions
+
+- **Files**: always kebab-case (`branch-selector-modal.tsx`, `use-click-outside.ts`). Never PascalCase filenames
+- **Directories**: always lowercase kebab-case (`launching-screen/`, `project-detail/`, `ui/`, `icon/`)
+- **Components**: PascalCase inside the file (`BranchSelectorModal`). The kebab-case filename maps to the PascalCase export
+- **Hooks**: `use-<name>.ts` filename, `use<Name>` export (e.g., `use-click-outside.ts` exports `useClickOutside`)
+- **Icons**: `svg-icon-<name>.tsx` filename, `SvgIcon<Name>` export
+- **Types/constants files**: kebab-case (`types.ts`, `constants.ts`)
+
+## Module Structure
+
+- Max file length: 200 lines (enforced by `max-lines`). If a file exceeds this, split it
+- File order: imports → types/interfaces → constants → helper functions/hooks → main component/function → `export { ... }` at bottom
+- Bottom-of-file exports: `export { Name }` and `export type { Name }`, never `export const` or `export function` (enforced by `no-restricted-syntax`). Types/interfaces may be exported inline or at bottom
+- No default exports (config files exempt)
+- Re-export public APIs through barrel files (`index.ts`) for: `components/ui/`, `hooks/`, `components/icon/`, and multi-file feature directories
+- When a component has 3+ sub-components, convert to a directory with barrel `index.ts` (preserves import path): the barrel exports only the public surface, not every internal sub-component
+- Do not create barrel files for the flat `components/` layer. Import directly by path: `import { ErrorBanner } from "@/components/error-banner"`
+- Import order (enforced by Biome `organizeImports`): external packages first, then `@/` internal imports, blank line between groups
+- Use `@/*` path aliases for cross-folder imports; `./` for same-folder. No parent-relative imports (`../`) where `@/*` is appropriate
+- `type="button"` on all non-submit buttons
+
+## Component Architecture
+
+**One component per file** (enforced by `local/no-multi-comp`). Every `.tsx` file exports exactly one React component. No helper components, no "small" sub-components sharing a file. Extract them to their own files.
+
+Three-layer separation: **containers** wire data to **components**, backed by **hooks**.
+
+**Containers** (`containers/`):
+
+- Smart components that fetch data, manage state, and wire callbacks
+- Compose hooks and pass results to presentational components
+- Name by feature: `dashboard-sidebar.tsx`, `dashboard-modals.tsx`
+- May contain conditional rendering logic (loading/error/ready states)
+- Never render raw HTML/Tailwind: delegate to components
+
+**Components** (`components/`):
+
+- Presentational: receive all data via props, render UI
+- No data fetching, no business logic. Only local UI state (hover, toggle, animation)
+- Reusable across containers
+
+**Hooks** (`hooks/`):
+
+- Encapsulate data fetching, subscriptions, and business logic
+- Return data + callbacks, never JSX
+- One concern per hook. Compose small hooks into larger ones
+
+**Data flow**: `hooks → containers → components`
+
+### Compound Components (Context-Based)
+
+When related components must share configuration state (variant, size, accessibility IDs):
+
+1. Create a `Context` with the shared state type
+2. The parent wraps children in `<Context.Provider value={state}>`
+3. Child sub-components read context with `useContext` and self-configure
+4. The parent does not thread state props into each child: children pull from context
+5. **Context-driven variant adaptation**: when the parent has a `variant` prop, children must read it from context and adapt their styling (spacing, typography scale, layout) automatically. Never require the consumer to pass variant to each child manually
+
+Two decomposition forms:
+
+- **Directory-based** (3+ sub-components): split into a directory with barrel `index.ts`. Context goes in a separate file. Example: `Modal` / `ModalHeader` / `ModalBody` / `ModalFooter` (context shares `headerId` for accessibility)
+- **Single-file** (2 tightly coupled components): keep in one file with `/* eslint-disable local/no-multi-comp */` and a justifying comment. Examples: `FormControl` / `InputLabel` (context shares `variant` for error state), `Skeleton` / `SkeletonBar` / `SkeletonAvatar` (sub-variants of one primitive)
+
+### Children Composition Over Prop Funnels
+
+Prefer `children` composition over prop-forwarding components:
+
+- A component that receives 8+ props and distributes them unchanged to children is a **prop funnel**. Refactor it so the container composes children directly
+- A component that adds only a wrapping `<div>` and forwards all props to one child is a **zero-value wrapper**. Inline it or replace with the child
+- When a container must render multiple sub-components, pass them as `children` or named slots, not as a flat prop bag with `derive*()` helpers
+
+### Typography Consistency
+
+Use the `Typography` component for all text rendering. Never use raw HTML heading or paragraph tags (`<h1>`-`<h6>`, `<p>`) with inline Tailwind classes. The `Typography` component maps variants to semantic HTML elements and applies design system tokens consistently.
+
+### Data-Driven Rendering
+
+When rendering repetitive UI (lists of actions, navigation links, FAQ items, feature cards), prefer declarative `as const` arrays over manual repetition:
+
+```tsx
+// Prefer: data-driven
+const ACTIONS = [
+  { icon: SvgIconCursor, label: "Edit in Cursor", action: "editInCursor" },
+  { icon: SvgIconSync, label: "Synchronize", action: "synchronize" },
+] as const;
+
+// Avoid: manual repetition of structurally identical elements
+<ActionRow icon={<SvgIconCursor />} label="Edit in Cursor" onClick={onEditInCursor} />
+<ActionRow icon={<SvgIconSync />} label="Synchronize" onClick={onSynchronize} />
+```
+
+### Cross-Component Context Hooks
+
+When deeply nested components need to adapt based on their container, export a `use<Context>()` hook from the compound component. Prefer this over prop drilling through intermediate layers. Example: a status badge inside a project card can read `useProjectStatus()` instead of receiving status as a prop through 3 layers.
+
+**When to split a page**: If a page file exceeds 200 lines, decompose into:
+
+- `pages/<page>/types.ts` for interfaces and constants
+- `pages/<page>/utils.ts` for pure functions
+- `hooks/use-<page>-*.ts` for extracted hooks
+- `containers/<page>-*.tsx` for smart wiring
+- `components/<page>-*.tsx` for presentational pieces
+- `pages/<page>.tsx` as thin entry point (~30 lines)
+
+## Engineering Principles
+
+- DRY: extract shared patterns, no copy-paste
+- YAGNI: no speculative features or unused abstractions
+- Fail fast: validate inputs early, return/throw before the happy path
+- Errors are values: use structured `AppError` types with `translateError()`, no bare `catch {}`
+- Use `fromTauriResult()` to bridge tauri-specta commands to neverthrow `ResultAsync`. Never use `unwrap()` + try/catch for Tauri commands
+- Use `result.match(onSuccess, onError)` instead of try/catch for Result handling in hooks
+- Use ts-pattern `match().with().exhaustive()` for if/else chains with 3+ branches on discriminated unions. Keep `Record<Status, Config>` maps as-is
+- **Discriminated union dispatch**: when a container must render different components based on a union type, extract the dispatch to a named function in a `renderers.tsx` or `utils.tsx` file. The function is a pure `match` returning `ReactNode`. Never inline the dispatch in JSX
+
+## Tauri Runtime (no browser APIs)
+
+This is a Tauri desktop app, not a browser app. Browser APIs are sandboxed or blocked:
+
+- **No `window.open()`**: use `openUrl()` from `@tauri-apps/plugin-opener`
+- **No `window.location`** for navigation: use Tauri window management commands. `window.location.hash` is acceptable for multi-window routing only
+- **No `localStorage`/`sessionStorage`**: use Tauri `Store` plugin or backend state
+- **No `document.cookie`**: use backend keychain/state
+- **No `fetch()` to external APIs**: route through Rust backend commands (CSP blocks direct external requests)
+- **No `Notification` API**: use Tauri notification plugin
+- **No `navigator.clipboard`**: allowed (not blocked by Tauri), but prefer Tauri clipboard plugin for reliability
+
+## Event and Runtime Safety
+
+- Never let listener exceptions break loops; wrap fan-out callbacks in `try/catch`
+- Make cleanup best-effort (`disconnect/close/unsubscribe` should not mask primary failures)
+- Keep status names consistent: `stopped | waitingForVm | starting | running | ready | degraded | failed | fixing | fixFailed | stopping`
+
+## Testing
+
+- Test real behavior, not mocked behavior
+- Mock Tauri `invoke` in test setup (`test/setup.ts`)
+- All error paths must have tests
+- All public exports should have tests
+- Test output must be pristine. Capture and validate expected errors
+- Place tests alongside source: `*.test.ts` / `*.test.tsx`
+- Test files have relaxed ESLint rules (no-any, no-magic-numbers, naming off)
+- Prefer condition polling helpers (`waitUntil` style) over fixed sleeps
+
+## Quality Gate
+
+```bash
+pnpm check            # full pipeline: biome + eslint + tsc + vitest
+pnpm lint             # biome + eslint (no tests)
+pnpm format           # biome format
+```
+
+Pre-commit hook runs Biome format + ESLint fix on staged files via lint-staged.
+CI runs full `pnpm check` on every push/PR to `main` (`.github/workflows/quality-gate.yml`).
+Run `pnpm check` after substantive changes. If build-sensitive code changed, also run `pnpm build`.
+
+## Structure
+
+```
+components/
+  ui/         Design system primitives (Button, Card, Modal, Input, etc.)
+  *           Presentational feature components (Layout, Sidebar, ErrorBanner, etc.)
+containers/   Smart components that wire hooks to presentational components
+hooks/        Custom hooks: data fetching, subscriptions, business logic
+context/      React contexts (platform detection, toast notifications)
+lib/          Utilities (cn for Tailwind merge, error translation, OAuth polling)
+pages/        Top-level page entry points (thin, ~30 lines each)
+  dashboard/  Dashboard-specific types, utils, and sub-components
+layouts/      Shell-level wrappers (AppLayout, AppShell, RootLayout). Not pages, not reusable components
+types.ts      Shared TypeScript types
+```
+
+## Design System
+
+Dark-themed with Host Grotesk (sans) and JetBrains Mono (code):
+
+- Design tokens as CSS variables in `index.css`, exposed via `@theme` for Tailwind 4
+- Primary accent: gold #C17812 (`accent-primary`, `accent-gold`)
+- Backgrounds: subtle gradient (`bg-gradient-surface`) with inset bevel (`shadow-inset-bevel`)
+- Borders: `rgba(181, 181, 181, 0.3)` default, `0.1` for subtle
+- UI primitives in `components/ui/` (Button, Input, Modal, Badge, ToggleSwitch, etc.)
+- Buttons use pill shape (`rounded-full`) for primary CTAs, `48px` height
+- Helper cards: `rgba(181,181,181,0.1)` background, `24px` radius
+
+### Tailwind Constraints
+
+- Never use arbitrary values (`w-[347px]`, `text-[#ff0000]`, `mt-[23px]`). If a value is not in the Tailwind scale, add a CSS variable to `index.css` under `@theme` first, then use the resulting token
+- Reference `index.css` `@theme` before styling anything. All spacing, color, and size values must resolve to a named token
+
+### Tailwind Class Ordering
+
+Class ordering is enforced by Biome's `useSortedClasses` rule. Do not manually order classes: write them in any order, then run `pnpm biome check --write .` to auto-sort. The linter is the source of truth.
+
+### UI Primitive Data Attributes
+
+Every `components/ui/` primitive must carry these HTML data attributes on its root element:
+
+- `data-slot="<component-name>"` - always (e.g., `data-slot="button"`, `data-slot="badge"`)
+- `data-variant={variant}` - when the component has a `variant` prop
+- `data-size={size}` - when the component has a `size` prop
+
+These serve as styling hooks for parent components and automated testing selectors.
+
+### Loading States
+
+Two patterns, do not mix:
+
+- **Skeleton** (`Skeleton`, `SkeletonBar`, `SkeletonAvatar` in `components/ui/skeleton.tsx`): use when a content region is initially empty while data loads. The skeleton mirrors the real layout's shape so the page does not reflow. Use for section or page initial loads.
+- **Spinner** (`Spinner`): use for in-place transitions: a button submitting, an action in progress, a widget refreshing. Never replace a full content region with a spinner.
+
+Rule of thumb: if the user waits for a *section* to appear, use skeleton. If the user waits for an *action* to complete, use spinner.
+
+## Transitory Action State
+
+Two truth sources for "is this action in flight", picked by which signal actually defines completion:
+
+- **Server-driven pending** (truth is a backend status event, e.g. project lifecycle start/stop): derive `isTransitioning` from the status event itself (`TRANSITIONING.has(status)`). To bridge the click-to-first-event gap, wrap the action in React 19 `useTransition` and OR the hook's `isPending` with the server flag. See `components/project-detail/project-controls.tsx`
+- **Promise-driven pending** (truth is the IPC promise itself, e.g. share, publish, pull): use TanStack Query `useMutation` and expose `{ mutate, isPending }` as an `ActionMutation`. Place the mutation in the hook that owns the action (`use-share-actions.ts`, `use-publish-actions.ts`, `use-repo-actions.ts`). Consumers read `actions.<name>.isPending` directly, no global tracking required
+
+Forbidden: a global `Set<string>` of in-flight project ids (`sharingIds`, `publishingIds`, `syncingIds`, etc.) threaded through `DashboardUiState`. If you reach for one, switch to `useMutation` or `useTransition` instead. The same applies to any other `*Ids` set used to track which entities are mid-action: the pending state belongs on the action primitive, not on a sibling state slot.
+
+`QueryClientProvider` is already mounted at `RootLayout` inside `ToastProvider`, so mutation callbacks can call `useToastContext()` and `useErrorState()`.

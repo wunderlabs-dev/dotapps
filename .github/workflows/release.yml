@@ -1,0 +1,443 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to build. Required for workflow_dispatch (dry-runs or re-running an existing tag)."
+        required: true
+        default: "v0.0.0-dryrun.1"
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    # Matrix builds aarch64 + x86_64 Darwin in parallel. Each entry produces
+    # its own .dmg, signed .app.tar.gz, minisign .sig, and a single-platform
+    # latest.json fragment. The `merge-manifest` job downstream stitches the
+    # fragments into a unified updater manifest before publishing.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            platform_key: darwin-aarch64
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            platform_key: darwin-x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      TAG_NAME: ${{ github.event.inputs.tag_name || github.ref_name }}
+      # GitHub Actions doesn't expand secrets reliably in step-level `if:`
+      # conditions, so we surface "do we have signing material?" as plain
+      # env booleans on the job. Maintainers control these by populating
+      # (or not) the APPLE_CERTIFICATE and APPLE_ID secrets.
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag_name || github.ref }}
+
+      - name: Assert tag matches tauri.conf.json version
+        run: |
+          tag_version="${TAG_NAME#v}"
+          conf_version=$(jq -r .version src/tauri/tauri.conf.json)
+          if [[ "$tag_version" != "$conf_version" ]]; then
+            echo "::error::Tag $TAG_NAME implies version $tag_version but src/tauri/tauri.conf.json reports $conf_version. Run scripts/bump-version.sh on main and re-tag."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: pnpm install
+
+      - name: Run frontend tests
+        working-directory: src/web
+        run: pnpm test
+
+      - name: Prepare resources
+        # Must run before any cargo command. opnble's build script runs
+        # tauri-build, which validates that every externalBin declared in
+        # tauri.conf{,.macos}.json resolves to an actual file. Without
+        # the prepared sidecars the build script exits 1 with `resource
+        # path 'binaries/cloudflared-…' doesn't exist`.
+        run: chmod +x ./scripts/prepare-resources.sh && ./scripts/prepare-resources.sh
+
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy quality gate (host)
+        run: cargo clippy -p opnble --all-targets -- -D warnings
+
+      - name: Run Clippy quality gate (agent)
+        run: cargo clippy -p opnble-agent --all-targets -- -D warnings
+
+      - name: Run Rust tests (host)
+        run: cargo test -p opnble
+
+      - name: Run Rust tests (agent)
+        run: cargo test -p opnble-agent
+
+      - name: Configure beta channel endpoint
+        # When building a -beta.* or -rc.* tag, retarget the updater
+        # endpoint so the installed beta binary polls /updates/beta/latest.json
+        # instead of /updates/latest.json. Stable releases keep the
+        # default endpoint already in tauri.conf.json.
+        if: contains(env.TAG_NAME, '-beta') || contains(env.TAG_NAME, '-rc')
+        run: |
+          set -euo pipefail
+          echo "Beta build detected ($TAG_NAME); rewriting updater endpoint."
+          jq '.plugins.updater.endpoints = ["https://openable.dev/updates/beta/latest.json"]' \
+            src/tauri/tauri.conf.json > src/tauri/tauri.conf.json.tmp
+          mv src/tauri/tauri.conf.json.tmp src/tauri/tauri.conf.json
+          jq -r .plugins.updater.endpoints src/tauri/tauri.conf.json
+
+      - name: Install Tauri CLI
+        # Pinned to avoid silent CLI regressions between release builds.
+        # Bump intentionally via a separate hygiene PR after testing.
+        run: cargo install tauri-cli --version 2.11.2 --locked
+
+      - name: Import Apple Developer ID certificate
+        # When APPLE_CERTIFICATE is empty (early dry-runs before the secret
+        # lands) we skip the cert import. Later signing steps then no-op
+        # because Tauri's bundler reads APPLE_CERTIFICATE as the trigger
+        # for the whole signing path; without it the build still produces
+        # an unsigned .dmg so maintainers can inspect pipeline structure.
+        if: env.HAS_APPLE_CERT == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Verify signing identity is present
+        if: env.HAS_APPLE_CERT == 'true'
+        run: security find-identity -v -p codesigning signing_temp.keychain
+
+      - name: Build (signed app + dmg, auto-notarize-and-staple the .app)
+        # Tauri's bundler signs externalBin sidecars (vfkit, gvproxy,
+        # cloudflared) and the outer .app with the entitlements file when
+        # APPLE_CERTIFICATE + APPLE_CERTIFICATE_PASSWORD are set. When
+        # APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID are ALSO set it then
+        # calls notarytool and staples the .app. The .dmg gets signed but
+        # not notarized in the bundler; we notarize it manually below.
+        #
+        # GitHub Actions injects empty strings for unset secrets, which
+        # Tauri treats as "yes, sign with this empty cert" and the build
+        # explodes inside `security import`. The unset loop below makes
+        # dry-runs (and any pre-cert build) actually fall through to the
+        # unsigned path instead of crashing the bundler.
+        working-directory: src/tauri
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for var in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!var:-}" ]; then
+              unset "$var"
+            fi
+          done
+          cargo tauri build --target ${{ matrix.target }} --bundles app,dmg,updater
+
+      - name: Notarize and staple the .dmg
+        # Same skip-when-empty pattern: dry-runs without secrets exit
+        # cleanly so the rest of the pipeline still produces an
+        # unnotarized .dmg for path/structure verification.
+        if: env.HAS_APPLE_NOTARY == 'true'
+        working-directory: target/${{ matrix.target }}/release/bundle/dmg
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          DMG=$(ls *.dmg | head -n1)
+          echo "Notarizing $DMG (30 min timeout)..."
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id  "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+
+      - name: Sanity-check signatures
+        # Only runs when we actually signed something. Verifies the outer
+        # .app is signed + stapled, the .dmg is signed + stapled, and vfkit
+        # specifically carries the virtualization entitlement (the one
+        # failure mode that would block VM startup even with a passing
+        # notary submission).
+        if: env.HAS_APPLE_CERT == 'true'
+        working-directory: target/${{ matrix.target }}/release/bundle
+        run: |
+          set -euxo pipefail
+          APP=$(ls -d macos/*.app | head -n1)
+          DMG=$(ls dmg/*.dmg | head -n1)
+          codesign -dvvv --entitlements :- "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl -a -t exec -vv "$APP"
+          xcrun stapler validate "$APP"
+          spctl -a -t open --context context:primary-signature -vv "$DMG"
+          xcrun stapler validate "$DMG"
+          codesign -d --entitlements :- "$APP/Contents/MacOS/vfkit" \
+            | grep -q "com.apple.security.virtualization"
+
+      - name: Verify bundles exist
+        # The workspace target dir lives at <repo>/target/ (Cargo workspace
+        # with members = ["src/tauri", "src/agent"]), not src/tauri/target/.
+        # Fail loud here so a future path drift never silently uploads an
+        # empty artifact like v0.1.0-dev.1 did (see run 23948611056).
+        run: |
+          set -euo pipefail
+          bundle_root="target/${{ matrix.target }}/release/bundle"
+          echo "Listing $bundle_root:"
+          ls -la "$bundle_root" || { echo "::error::bundle root missing: $bundle_root"; exit 1; }
+          dmg=$(find "$bundle_root/dmg" -maxdepth 1 -name '*.dmg' -print -quit || true)
+          if [ -z "$dmg" ]; then
+            echo "::error::no .dmg found under $bundle_root/dmg"
+            exit 1
+          fi
+          echo "Found dmg: $dmg"
+
+      - name: Rename per-arch updater bundle
+        # Tauri's bundler writes `<productName>.app.tar.gz` without an arch
+        # suffix, so both matrix entries would collide at the same R2 key
+        # when they upload. Rename here so each arch has its own filename
+        # both in R2 and in the updater manifest URL.
+        run: |
+          set -euo pipefail
+          bundle_root="target/${{ matrix.target }}/release/bundle"
+          src_tar="$bundle_root/macos/opnble.app.tar.gz"
+          src_sig="$bundle_root/macos/opnble.app.tar.gz.sig"
+          dst_tar="$bundle_root/macos/opnble-${{ matrix.platform_key }}.app.tar.gz"
+          dst_sig="$bundle_root/macos/opnble-${{ matrix.platform_key }}.app.tar.gz.sig"
+          if [ ! -f "$src_tar" ] || [ ! -f "$src_sig" ]; then
+            echo "::error::missing $src_tar or $src_sig"
+            exit 1
+          fi
+          mv "$src_tar" "$dst_tar"
+          mv "$src_sig" "$dst_sig"
+          echo "Renamed -> $(basename "$dst_tar"), $(basename "$dst_sig")"
+
+      - name: Generate per-arch updater manifest fragment
+        run: |
+          chmod +x ./scripts/generate-update-manifest.sh
+          ./scripts/generate-update-manifest.sh \
+            "$TAG_NAME" \
+            target/${{ matrix.target }}/release/bundle/macos \
+            target/${{ matrix.target }}/release/bundle/macos/latest-${{ matrix.platform_key }}.json \
+            "${{ matrix.platform_key }}"
+
+      - name: Publish per-arch artifacts to R2
+        # Upload binaries (dmg, signed .app.tar.gz, .sig) and the per-arch
+        # manifest fragment to the per-tag R2 prefix. The channel pointer
+        # (stable/beta latest.json) is updated separately by the
+        # `merge-manifest` job after all matrix entries finish, so that
+        # the served manifest always lists every supported platform at
+        # once instead of flapping as each arch completes.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: opnble-releases
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::warning::R2 secrets not set; skipping R2 upload."
+            exit 0
+          fi
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "Installing aws-cli via brew..."
+            brew install awscli >/dev/null
+          fi
+          aws --version
+          bundle_root="target/${{ matrix.target }}/release/bundle"
+          artifact_count=0
+          # bash 3.2 on macos runners has no `mapfile`; stream find through
+          # a while-read loop instead.
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            name=$(basename "$f")
+            case "$name" in
+              *.dmg) ct="application/x-apple-diskimage" ;;
+              *.tar.gz) ct="application/gzip" ;;
+              *.sig) ct="text/plain; charset=utf-8" ;;
+              *.json) ct="application/json" ;;
+              *) ct="application/octet-stream" ;;
+            esac
+            echo "uploading $name -> s3://$R2_BUCKET/$TAG_NAME/$name"
+            aws s3 cp "$f" "s3://$R2_BUCKET/$TAG_NAME/$name" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type "$ct"
+            artifact_count=$((artifact_count + 1))
+          done < <(
+            find "$bundle_root/dmg" -maxdepth 1 -name '*.dmg' -type f 2>/dev/null || true
+            find "$bundle_root/macos" -maxdepth 1 \( -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o -name 'latest-*.json' \) -type f 2>/dev/null || true
+          )
+          if [ "$artifact_count" -eq 0 ]; then
+            echo "::error::no release artifacts to upload"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.platform_key }}-bundle
+          if-no-files-found: error
+          path: |
+            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+            target/${{ matrix.target }}/release/bundle/macos/latest-*.json
+
+  merge-manifest:
+    # Combine the per-arch manifest fragments produced by `build-macos` into
+    # a single updater manifest that lists every supported platform under
+    # `platforms.<key>`, then promote it to the right channel pointer.
+    # Skipped entirely for `-dryrun.*` tags so pipeline-validation runs
+    # don't roll out a broken unsigned manifest to existing installs.
+    needs: build-macos
+    if: ${{ !contains(github.event.inputs.tag_name || github.ref_name, '-dryrun') }}
+    runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ${{ github.event.inputs.tag_name || github.ref_name }}
+    steps:
+      - name: Download aarch64 fragment
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-darwin-aarch64-bundle
+          path: artifacts/aarch64
+
+      - name: Download x86_64 fragment
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-darwin-x86_64-bundle
+          path: artifacts/x86_64
+
+      - name: Merge per-arch fragments into unified latest.json
+        run: |
+          set -euo pipefail
+          aarch64=$(find artifacts/aarch64 -name 'latest-darwin-aarch64.json' | head -n1)
+          x86_64=$(find artifacts/x86_64 -name 'latest-darwin-x86_64.json' | head -n1)
+          if [ -z "$aarch64" ] || [ -z "$x86_64" ]; then
+            echo "::error::missing per-arch fragments (aarch64=$aarch64 x86_64=$x86_64)"
+            exit 1
+          fi
+          echo "Merging:"
+          jq . "$aarch64"
+          jq . "$x86_64"
+          # `jq -s '.[0] * .[1]'` does a recursive merge: top-level fields
+          # (version, pub_date, notes) take the last value, and `platforms`
+          # combines both keys into one object.
+          jq -s '.[0] * .[1]' "$aarch64" "$x86_64" > merged-latest.json
+          echo "Merged manifest:"
+          jq . merged-latest.json
+
+      - name: Promote merged manifest to R2 + channel pointer
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: opnble-releases
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::warning::R2 secrets not set; skipping promotion."
+            exit 0
+          fi
+          # Per-tag archival copy of the merged manifest. Useful for
+          # forensic comparisons across releases.
+          aws s3 cp merged-latest.json \
+            "s3://$R2_BUCKET/$TAG_NAME/latest.json" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "application/json"
+          if [[ "$TAG_NAME" =~ -beta|-rc ]]; then
+            channel=beta
+          else
+            channel=stable
+          fi
+          echo "promoting merged latest.json -> s3://$R2_BUCKET/$channel/latest.json"
+          aws s3 cp merged-latest.json \
+            "s3://$R2_BUCKET/$channel/latest.json" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "application/json" \
+            --cache-control "public, max-age=60"
+
+  create-release:
+    # Final step: attach every per-arch bundle to a GitHub Release entry
+    # for maintainer audit. Update clients never read from GitHub Releases;
+    # they fetch from openable.dev/releases/<tag>/<file>.
+    needs: build-macos
+    if: ${{ !contains(github.event.inputs.tag_name || github.ref_name, '-dryrun') }}
+    runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ${{ github.event.inputs.tag_name || github.ref_name }}
+    steps:
+      - name: Download aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-darwin-aarch64-bundle
+          path: artifacts/aarch64
+
+      - name: Download x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-darwin-x86_64-bundle
+          path: artifacts/x86_64
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.app.tar.gz.sig
+            artifacts/**/latest-*.json
+          # Publish immediately. Beta tags (vX.Y.Z-beta.N) and release
+          # candidates (vX.Y.Z-rc.N) are marked as prereleases so they
+          # don't bleed into the stable channel.
+          draft: false
+          prerelease: ${{ contains(env.TAG_NAME, '-beta') || contains(env.TAG_NAME, '-rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
