@@ -1,4 +1,4 @@
-.PHONY: all install kill-dev vm-doctor dev-frontend dev dev-all build prepare-resources clean check test test-frontend test-all setup-macos setup-linux setup-dirs vm-image wsl-image help lint-frontend fmt-frontend lint-rust fmt-check lint skills-check parity worker-check worker-deploy
+.PHONY: all install kill-dev vm-doctor dev-frontend dev dev-all build prepare-resources clean check test test-frontend test-all setup-macos setup-linux setup-dirs vm-image wsl-image help lint-frontend fmt-frontend lint-rust fmt-check lint skills-check parity worker-check worker-deploy demo-reset
 
 # Default target
 all: install check
@@ -201,6 +201,10 @@ worker-check:
 worker-deploy:
 	cd src/worker && npm run deploy
 
+# Reset to a clean demo state (empty Library, fresh VM) and relaunch
+demo-reset:
+	@bash $(CURDIR)/scripts/demo-reset.sh
+
 # Create required directories
 setup-dirs:
 	mkdir -p ~/.dotapps/repos
@@ -262,6 +266,7 @@ help:
 	@echo "  make vm-doctor    - Force-clear stuck vfkit/gvproxy (try with sudo)"
 	@echo "  make reset-state  - Reset all projects to stopped"
 	@echo "  make status       - Show VM, agent, and project status"
+	@echo "  make demo-reset   - Reset to a clean demo state and relaunch"
 	@echo "  make build        - Build for production (runs prepare-resources first)"
 	@echo "  make prepare-resources - Stage helper binaries into src/tauri/"
 	@echo "  make check        - Run all checks (frontend + Rust quality gate)"

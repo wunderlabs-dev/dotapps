@@ -221,6 +221,9 @@ fn build_tray_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         )?,
     };
 
+    let reset_demo =
+        MenuItem::with_id(app, "demo_reset", "Reset for demo", true, None::<&str>)?;
+
     let separator1 = PredefinedMenuItem::separator(app)?;
     let dashboard = MenuItem::with_id(app, "dashboard", "Show Dashboard", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
@@ -232,6 +235,7 @@ fn build_tray_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         &[
             &status_item,
             &vm_toggle,
+            &reset_demo,
             &separator1,
             &dashboard,
             &settings,
@@ -272,6 +276,13 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
         "vm_start" => handle_vm_start(app),
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         "vm_stop" => handle_vm_stop(app),
+        #[cfg(target_os = "macos")]
+        "demo_reset" => {
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                crate::apps::commands::reset_demo(&app_handle).await;
+            });
+        }
         "quit" => {
             let app_handle = app.clone();
             tauri::async_runtime::spawn(async move {

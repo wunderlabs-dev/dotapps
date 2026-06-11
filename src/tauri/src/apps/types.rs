@@ -51,9 +51,13 @@ impl Manifest {
         Ok(())
     }
 
-    /// Podman image reference the `.apps` artifact was built with.
+    /// Podman image reference used to run the app. The CLI builds and saves
+    /// the image as `dotapps/{slug}:{version}`; `podman load` stores a
+    /// registry-less image under the `localhost/` namespace, and running it by
+    /// the bare name would trigger an unqualified-registry search against
+    /// docker.io. The `localhost/` prefix forces a purely local lookup.
     pub fn image_ref(&self) -> String {
-        format!("dotapps/{}:{}", self.slug, self.version)
+        format!("localhost/dotapps/{}:{}", self.slug, self.version)
     }
 
     /// Container name inside the VM. The `dotapps-` prefix keeps these apart
@@ -149,7 +153,7 @@ mod tests {
     #[test]
     fn naming_helpers_derive_from_slug_and_version() {
         let m = manifest();
-        assert_eq!(m.image_ref(), "dotapps/cafe-tracker:1.0.0");
+        assert_eq!(m.image_ref(), "localhost/dotapps/cafe-tracker:1.0.0");
         assert_eq!(m.container_name(), "dotapps-cafe-tracker");
         assert_eq!(m.volume_name(), "dotapps-cafe-tracker-data");
     }

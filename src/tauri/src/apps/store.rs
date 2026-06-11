@@ -77,6 +77,15 @@ impl AppStore {
         self.save(&state)
     }
 
+    /// Remove every installed app from the store (for the demo reset). The
+    /// caller is responsible for tearing down the corresponding containers,
+    /// volumes, and port forwards first.
+    pub fn clear(&self) -> Result<(), AppError> {
+        let mut state = self.state.lock()?;
+        state.apps.clear();
+        self.save(&state)
+    }
+
     /// Clear every app's `running` flag. Called at startup before the VM is
     /// up, since no containers run yet; the auto-start pass re-runs installed
     /// apps and sets the flag back to `true`. Without this a crash or reboot

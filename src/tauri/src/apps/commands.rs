@@ -286,6 +286,41 @@ pub async fn auto_start_installed(store: &AppStore, vm: &VmLifecycle, forwards: 
     }
 }
 
+/// Reset to a clean demo state: stop and remove every installed app's
+/// container, wipe its data volume, drop its port forward, close its window,
+/// and empty the store. The VM keeps running. Best-effort throughout so one
+/// failure does not abort the rest.
+pub async fn reset_demo(app: &tauri::AppHandle) {
+    let store = Arc::clone(app.state::<Arc<AppStore>>().inner());
+    let vm = Arc::clone(app.state::<Arc<VmLifecycle>>().inner());
+    let forwards = Arc::clone(app.state::<Arc<AppForwards>>().inner());
+
+    let apps = store.list().unwrap_or_default();
+    for installed in &apps {
+        let manifest = &installed.manifest;
+        if validate_slug(&manifest.slug).is_err() {
+            continue;
+        }
+        let teardown = format!(
+            "podman rm -f {name} >/dev/null 2>&1; podman volume rm -f {vol} >/dev/null 2>&1",
+            name = manifest.container_name(),
+            vol = manifest.volume_name(),
+        );
+        let _ = vm.exec_host(&teardown).await;
+        if let Some(handle) = forwards.0.lock().await.remove(&manifest.slug) {
+            crate::vm::port_forward::stop_forwarding(&handle);
+        }
+        if let Some(window) = app.get_webview_window(&format!("app-{}", manifest.slug)) {
+            let _ = window.close();
+        }
+    }
+
+    if let Err(e) = store.clear() {
+        tracing::error!("reset_demo: cannot clear app store: {e}");
+    }
+    tracing::info!("reset_demo: cleared {} app(s)", apps.len());
+}
+
 fn ensure_slug_matches(expected: &str, actual: &str) -> Result<(), AppError> {
     if expected == actual {
         Ok(())
