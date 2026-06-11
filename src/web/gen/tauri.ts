@@ -461,6 +461,75 @@ async revealLogsFolder() : Promise<Result<string, AppError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * `GET /v1/apps` from the registry: everything installable.
+ */
+async viboxRegistryApps() : Promise<Result<StoreApp[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_registry_apps") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Installed apps from the local store (store state is the source of truth
+ * for `running`; no podman round-trip).
+ */
+async viboxInstalledApps() : Promise<Result<InstalledApp[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_installed_apps") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Install (or update) an app: download the `.vibox`, unpack it into the
+ * shared repos dir, and `podman load` the image inside the VM. The host
+ * port assignment survives updates; the data volume is version-independent.
+ */
+async viboxInstallApp(slug: string) : Promise<Result<InstalledApp, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_install_app", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Run an installed app and return its host port.
+ */
+async viboxRunApp(slug: string) : Promise<Result<number, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_run_app", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stop a running app's container and tear down its port forward.
+ */
+async viboxStopApp(slug: string) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_stop_app", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Open (or focus) the app's dedicated window pointing at its host port.
+ */
+async viboxOpenApp(slug: string) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vibox_open_app", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async initVm() : Promise<Result<null, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("init_vm") };
@@ -676,6 +745,14 @@ export type GitHubRepo = { id: number; name: string; full_name: string; private:
  */
 export type GitHubUser = { login: string; avatar_url: string }
 /**
+ * An app installed on this host, persisted in `~/.vibox/apps.json`.
+ */
+export type InstalledApp = { manifest: Manifest; hostPort: number | null; running?: boolean }
+/**
+ * App manifest as published to the registry (`vibox.json` / `manifest.json`).
+ */
+export type Manifest = { name: string; slug: string; version: string; icon: string; internalPort: number; description?: string }
+/**
  * Status snapshot rendered by the Settings panel "Cursor integration"
  * section. Counts are derived live from the store on each call so the panel
  * stays in sync with project add / remove without a separate event.
@@ -802,6 +879,10 @@ failed: number }
 export type ShareResponse = { url: string }
 export type SnapshotId = string
 export type SnapshotRecord = { id: SnapshotId; projectId: ProjectId; label: string | null; takenAt: number; sizeBytes: number }
+/**
+ * An app as listed by the registry's store catalog.
+ */
+export type StoreApp = { manifest: Manifest }
 export type UpdateInfo = { version: string; currentVersion: string; notes: string | null; date: string | null }
 /**
  * Emitted on the `vm-image-progress` Tauri event. Byte counts are over the

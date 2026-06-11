@@ -149,6 +149,33 @@ impl VmLifecycle {
         manager.exec(cmd).await
     }
 
+    /// Run a shell command directly on the VM host via the agent's `ExecHost`
+    /// RPC (not inside a container). Returns (`exit_code`, stdout, stderr).
+    ///
+    /// Used by vibox app commands to drive podman. The agent Arc is cloned
+    /// while briefly holding the lock so the RPC (up to 120s for large
+    /// `podman load`s) does not hold the manager mutex.
+    pub async fn exec_host(
+        &self,
+        cmd: &str,
+    ) -> Result<(i32, String, String), crate::error::AppError> {
+        let agent = {
+            let guard = self.manager.lock().await;
+            let manager = guard
+                .as_ref()
+                .ok_or(crate::error::AppError::VmNotRunning)?;
+            Arc::clone(manager.agent())
+        };
+        agent.exec_host(cmd).await
+    }
+
+    /// vsock socket path for port forwarding, or None when the VM is not
+    /// running.
+    pub async fn vsock_path(&self) -> Option<std::path::PathBuf> {
+        let guard = self.manager.lock().await;
+        guard.as_ref().map(|m| m.vsock_socket_path().to_path_buf())
+    }
+
     /// Get VM resource statistics
     pub async fn resource_stats(&self) -> Result<ResourceStats, VmError> {
         let manager = {

@@ -96,6 +96,12 @@ pub fn run() -> Result<(), AppError> {
         Arc::clone(&authenticator),
     ));
 
+    // ==================== Vibox Apps ====================
+    let app_store = Arc::new(crate::apps::store::AppStore::load(
+        crate::constants::paths::base_dir()?.join("apps.json"),
+    ));
+    let app_forwards = Arc::new(crate::apps::AppForwards::default());
+
     // Recent-MCP-tool-invocation ring. Constructed here so it lives in
     // Tauri-managed state (the `mcp_recent_tool_invocations` command pulls
     // the same Arc that `McpDeps::collect` hands to `OpnbleMcp`).
@@ -162,7 +168,10 @@ pub fn run() -> Result<(), AppError> {
         .manage(github_pages_client)
         .manage(github_repos_client)
         .manage(Arc::clone(&exec_runner))
-        .manage(Arc::clone(&tool_ring));
+        .manage(Arc::clone(&tool_ring))
+        // Manage vibox app state
+        .manage(app_store)
+        .manage(app_forwards);
 
     // Platform-specific state management
     builder = platform.manage_state(builder);

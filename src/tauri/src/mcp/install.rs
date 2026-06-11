@@ -52,6 +52,10 @@ pub struct SweepReport {
 /// to where) or Cursor was not detected so the call was a no-op. Lets the
 /// caller log the path on first install without growing a parallel result
 /// channel.
+#[expect(
+    dead_code,
+    reason = "vibox no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
+)]
 #[derive(Debug, Clone)]
 pub enum GlobalInstall {
     /// `~/.cursor/` is missing, so Cursor is not installed on this machine
@@ -154,6 +158,10 @@ pub fn install_project_entry(repo_path: &Path, label: &str) {
 /// also helps when they open something else in Cursor (e.g. an existing
 /// project they cloned by hand). Both files are deep-merged so user-added
 /// `mcpServers.*` entries always survive.
+#[expect(
+    dead_code,
+    reason = "vibox no-ops the global cursor MCP install (bootstrap::install_global_cursor_mcp); kept for the upstream opnble flow"
+)]
 pub fn write_global_mcp_config(token: &str, port: u16) -> Result<GlobalInstall, AppError> {
     match global_config_path()? {
         None => Ok(GlobalInstall::CursorNotDetected),
