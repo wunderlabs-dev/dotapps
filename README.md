@@ -1,128 +1,162 @@
-# Opnble
+# dotapps
 
-> Run any React/Next.js project locally with zero setup
+> Dropbox for vibe-coded apps
 
-Opnble is a native desktop app for macOS, Windows, and Linux that lets anyone run web projects from git repositories. No Node.js, npm, git, or terminal knowledge required: everything is bundled.
+dotapps lets a developer package a containerized app into a single shareable
+artifact, publish it to a registry, and have a non-technical operator install,
+update, and run it from a desktop launcher with one click. No Docker, no
+terminal, no build steps on the operator's machine.
 
-Paste a GitHub URL, click Start, and see the project running in seconds.
+This is a hackathon project. It targets macOS on Apple Silicon.
 
-## Features
+## The three components
 
-- **Zero prerequisites**: Node.js, npm, git, and containers are all bundled inside the app
-- **One-click projects**: paste a repo URL or browse your GitHub repos, then click Start
-- **Cross-platform**: macOS (Apple Silicon and Intel), Windows (WSL2), Linux (native Podman)
-- **Private repositories**: GitHub OAuth for accessing private repos
-- **Multi-project management**: run several projects simultaneously, each on its own port
-- **Live log streaming**: real-time container output piped to the UI
-- **Git operations**: switch branches, pull latest changes, automatic dependency sync
-- **Tunnel sharing**: share a running project via a public Cloudflare Tunnel URL (one click)
-- **Editor integration**: open any project in Cursor directly from the sidebar
-- **Resource monitoring**: CPU and memory usage for the container runtime
+| Component | Path | Role |
+|-----------|------|------|
+| `dotapps` CLI | `src/cli/` | Developer tool: packs a Dockerfile project into a `.apps` artifact and publishes it to the registry |
+| Registry | `src/worker/` | Cloudflare Worker + R2 at `registry.dotapps.club`: stores artifacts and serves the catalog |
+| Launcher | `src/tauri/` + `src/web/` | The desktop app the operator uses to browse, install, update, and run apps |
 
 ## How it works
 
-Opnble bundles a lightweight container runtime per platform:
+A developer writes any app with a `Dockerfile` and a `dotapps.json` manifest
+(name, slug, version, icon, internal port, description). The `dotapps` CLI
+builds the image for `linux/arm64`, then packs it into a `.apps` artifact: a
+zstd-compressed tar holding exactly `manifest.json` and `image.tar`. `dotapps
+publish` uploads that artifact to the registry, which stores it in R2 and
+exposes it through a small HTTP API.
 
-| Platform | Runtime |
-|----------|---------|
-| macOS (Apple Silicon) | [vfkit](https://github.com/crc-org/vfkit) (Virtualization.framework) with Alpine Linux VM |
-| macOS (Intel) | QEMU with Alpine Linux VM |
-| Windows | WSL2 with Alpine distribution |
-| Linux | Native Podman (no VM needed) |
+On the other side, the operator opens the launcher. The **Store** tab lists
+every published app; the **Library** tab lists what they have installed.
+Clicking **Install** downloads the `.apps` artifact, unpacks it, and
+`podman load`s the image into a bundled Alpine VM. Clicking **Open** runs the
+app as a podman container inside that VM, forwards its port to the host, and
+shows it in its own window.
 
-When you start a project, the app clones the repo, mounts it into a container with Node.js pre-installed, installs dependencies, starts the dev server, and streams logs back to the UI. Port allocation, process lifecycle, and cleanup are all handled automatically.
+Each app gets a persistent named volume mounted at `/data`. Because the volume
+name is derived from the app's slug and carries no version, **data survives
+updates**: shipping a new version reloads a fresh image against the same
+volume, so the operator's data is still there.
 
-## Download
+Apps can also be installed straight from a link. A `dotapps://{slug}` deep link
+installs the latest version and runs it; `dotapps://{slug}@{version}` pins an
+exact version. Clicking such a link (or `open "dotapps://cafe-tracker@2.0.0"`)
+boots the VM if needed, installs, runs, opens the window, and focuses the
+launcher.
 
-Pre-built binaries are produced by the `Release` workflow on tag pushes.
+```
+developer                          registry                       operator
+---------                          --------                       --------
+dotapps.json + Dockerfile
+  │
+  ├─ dotapps pack  ─────────►  .apps (zstd tar: manifest.json + image.tar)
+  │
+  └─ dotapps publish ───────►  Cloudflare Worker + R2
+                                    │
+                                    └──────────►  launcher: install → podman load
+                                                            run    → podman run -v data:/data
+                                                            open   → window on forwarded port
+```
 
-| Platform | Status | Link |
-|----------|--------|------|
-| macOS (Apple Silicon) | Released (.dmg + auto-updater) | [Download .dmg](https://github.com/wunderlabs-dev/openable/releases/latest) |
-| macOS (Intel) | Buildable from source | (no pre-built binary yet) |
-| Windows | Buildable from source | (no pre-built binary yet) |
-| Linux | Buildable from source | (no pre-built binary yet) |
+## Demo
 
-Each platform's runtime path is implemented (vfkit / QEMU / WSL2 / native
-Podman); only the macOS ARM build is currently wired into the release
-matrix. Other platforms can be built locally with `make build`.
+`docs/DEMO.md` is the full runbook. Two example apps ship under `examples/`
+(`cafe-tracker` and `shift-board`): tiny FastAPI + SQLite apps that persist
+their data under `/data`, used to show the install / update / data-survival
+story.
 
 ## Development
+
+The Makefile is the only supported dev entrypoint. A lockfile at
+`~/.dotapps/dev.lock` prevents concurrent dev sessions from corrupting VM
+state. Runtime data (installed apps, app artifacts, VM image) lives under
+`~/.dotapps/`.
 
 ### Prerequisites
 
 - Rust (latest stable)
 - Node.js 20+ and pnpm
-- Platform tools: vfkit (macOS ARM), QEMU (macOS Intel), Podman (Linux)
+- macOS on Apple Silicon (vfkit + Virtualization.framework)
 
-### Quick start
-
-```bash
-make install          # install all dependencies (Rust + frontend)
-make dev-frontend     # start Vite dev server (separate terminal)
-make dev              # start Tauri app (requires Vite running)
-```
-
-Or run both together:
+### Common targets
 
 ```bash
-make dev-all          # start Vite + Tauri in one command
-```
-
-### Useful commands
-
-```bash
+make install          # install dependencies (Rust + frontend)
+make dev-all          # start Vite + the launcher together (typical dev loop)
 make restart          # kill everything, reset state, start fresh
-make status           # show VM, agent, Vite, and project status
-make check            # full quality gate (frontend lint + Rust clippy + fmt + tests)
+make status           # show VM, agent, Vite, and app status
+make check            # full quality gate (frontend lint + Rust clippy + fmt + parity)
 make test-all         # run all tests (Rust + frontend)
 make build            # production build
+make vm-image         # build the Alpine base VM image
+make worker-deploy    # deploy the registry Worker to Cloudflare
 ```
 
-### VM image (required for macOS/Windows)
+The VM image is a read-only Alpine base. At runtime the launcher makes an APFS
+copy-on-write clone so the base stays clean. `scripts/seed-vm-image.sh` seeds
+`~/.dotapps` with a locally-built base image to skip the first-run download.
+
+### CLI usage (developer side)
 
 ```bash
-make vm-image         # build the Alpine + Node.js base VM image
-```
+export DOTAPPS_REGISTRY=https://registry.dotapps.club   # optional override
+export DOTAPPS_TOKEN=<publish token>
 
-The VM image is a read-only base. At runtime, the app creates an APFS copy-on-write clone (macOS) or WSL2 distribution (Windows) so the base image stays clean.
+cd examples/cafe-tracker
+dotapps pack        # builds the image and writes cafe-tracker-1.0.0.apps
+dotapps publish     # uploads the newest .apps artifact to the registry
+```
 
 ## Architecture
 
 ```
 src/
-  web/              React 19 + TypeScript + Tailwind 4 + Vite 7
-  tauri/            Rust backend (Tauri 2.x)
-  agent/            Rust gRPC server running inside the VM
-  worker/           Cloudflare Worker for tunnel coordination
-  proto/            Protocol Buffer definitions (ttrpc)
+  cli/      dotapps CLI (Rust): pack + publish .apps artifacts
+  worker/   Cloudflare Worker + R2 registry (TypeScript)
+  tauri/    launcher backend (Rust, Tauri 2): install/run apps, VM orchestration
+  web/      launcher UI (React 19, TypeScript, Tailwind 4, Vite 7)
+  agent/    Rust gRPC server running inside the VM (drives podman)
+  proto/    Protocol Buffer definitions (ttrpc)
 ```
 
-**Data flow**: user adds repo URL, React hook calls Tauri command, Rust clones via libgit2 to `~/.opnble/repos/`, container starts with repo mounted, logs stream via Tauri events, frontend renders the output.
+The launcher runs podman exclusively through the VM agent's `ExecHost` RPC.
+The frontend follows a three-layer pattern: **hooks** (data fetching) feed
+**containers** (state wiring) which compose **components** (presentational).
 
-The frontend follows a three-layer pattern: **hooks** (data fetching, subscriptions) feed **containers** (state wiring) which compose **components** (presentational, props-only).
+### Internal names (do not be surprised)
 
-## CI/CD
+The launcher is built from a fork. Several internal identifiers keep the
+fork's original `opnble` name and are intentionally left unchanged: the Rust
+crates (`opnble`, `opnble_lib`, `opnble-agent`), the bundled binary
+(`dotapps.app/Contents/MacOS/opnble`), the in-VM container prefix (`opnble-`),
+and the VirtioFS mount tag (`opnble-repos`). These are baked into the VM image
+and the build, so they stay even though the product is `dotapps`.
 
-GitHub Actions workflows:
+## Registry API
 
-- **Frontend Quality Gate**: Biome + ESLint + TypeScript + Vitest (on `src/web/` changes)
-- **Tauri Command Parity**: validates all Tauri commands are registered across platforms
-- **Worker**: typechecks on PRs; deploys `src/worker/` to Cloudflare on push to `main`
-- **Release** (on tags `v*`): builds and uploads binaries for macOS ARM. Intel Mac, Windows, and Linux jobs are not yet wired into the matrix; those platforms are buildable from source via `make build`.
+```
+GET  /v1/apps                                → { apps: [{ manifest }] }
+GET  /v1/apps/{slug}/latest                  → { manifest, downloadUrl }
+GET  /v1/apps/{slug}/versions/{version}      → { manifest, downloadUrl }
+POST /v1/apps/{slug}/versions                → { uploadUrl, completeUrl }   (Bearer)
+PUT  {uploadUrl}                             → upload the .apps blob        (Bearer on fallback)
+POST {completeUrl}                           → { ok: true }                 (Bearer)
+```
+
+Publish endpoints require `Authorization: Bearer $DOTAPPS_TOKEN`. When R2
+credentials are configured the registry hands out presigned URLs so blob bytes
+bypass the Worker; otherwise upload and download fall back to Worker-served
+`/v1/blob/*` routes.
 
 ### Worker deploy secrets
 
-Add these repository secrets for automatic worker publishing:
-
 | Secret | Purpose |
 |--------|---------|
-| `CLOUDFLARE_API_TOKEN` | API token with Workers Scripts Edit (and route access for `openable.dev`) |
+| `CLOUDFLARE_API_TOKEN` | API token with Workers Scripts Edit (and route access for `dotapps.club`) |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 
-Runtime worker secrets (`CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`) are set once via `wrangler secret put` and are not overwritten by CI deploys.
-
-Local deploy: `make worker-deploy` (after `wrangler login` or with the env vars above).
+Local deploy: `make worker-deploy` (after `wrangler login` or with the env vars
+above).
 
 ## License
 

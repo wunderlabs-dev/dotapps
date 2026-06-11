@@ -1,12 +1,14 @@
-# Opnble - Agent instructions
+# dotapps - Agent instructions
 
 This file is the entrypoint for AI agents working in this repository. **Authoritative policy** lives in `.cursor/rules/*.mdc` (YAML frontmatter plus Markdown bodies). Cursor loads them automatically (`alwaysApply` and `globs`). This document summarizes how to navigate them and how humans run the project.
+
+The repo is a fork of the opnble launcher and several internal identifiers keep the `opnble` name on purpose (Rust crates `opnble`/`opnble_lib`/`opnble-agent`, the bundled binary `opnble`, the in-VM container prefix `opnble-`, the VirtioFS mount tag `opnble-repos`, and the `.cursor/rules/opnble-*.mdc` rule filenames). Those are real and must stay. The *product* is dotapps.
 
 ## Policy layout (Cursor rules)
 
 | File | Scope |
 |------|--------|
-| `.cursor/rules/opnble-core.mdc` | Always on: product context, engineering principles, architecture, `~/.opnble/` paths |
+| `.cursor/rules/opnble-core.mdc` | Always on: product context, engineering principles, architecture, runtime `~/.dotapps/` paths |
 | `.cursor/rules/opnble-makefile.mdc` | Always on: forbidden raw commands and their `make` equivalents |
 | `.cursor/rules/opnble-verification.mdc` | Always on: which gate to run before claiming work is done |
 | `.cursor/rules/opnble-canvas.mdc` | Always on: default to Cursor Canvas for visual or interactive output |
@@ -19,7 +21,7 @@ Do not recreate legacy agent instruction files: extend the matching `.mdc` rule 
 
 `.cursor/hooks.json` registers four hooks (see `.cursor/hooks/` for the scripts):
 
-- `beforeShellExecution` (`makefile-guard.sh`) asks for confirmation when commands like `pnpm dev`, `cargo tauri dev`, `pkill -f tauri`, or direct `vfkit`/`qemu-system` invocations would bypass the Makefile and the `~/.opnble/dev.lock` lockfile.
+- `beforeShellExecution` (`makefile-guard.sh`) asks for confirmation when commands like `pnpm dev`, `cargo tauri dev`, `pkill -f tauri`, or direct `vfkit`/`qemu-system` invocations would bypass the Makefile and the `~/.dotapps/dev.lock` lockfile.
 - `afterFileEdit` (`autoformat.sh`) runs `rustfmt` on `.rs` files and `biome format` on `src/web/**/*.{ts,tsx,js,jsx,json,css}` so format-only diffs do not leak into commits.
 - `stop` (`verify-on-stop.sh`) inspects uncommitted code changes and injects a `followup_message` naming the matching gate from `opnble-verification.mdc`.
 - `sessionStart` (`session-context.sh`) injects a repo state snapshot (branch, status, last five commits, worktrees, latest plan) at the start of each session.
@@ -45,7 +47,7 @@ To extend, add a new event under `hooks` in `hooks.json` and a matching script u
 
 ## Bugbot
 
-`.cursor/BUGBOT.md` (project root) plus nested `src/web/.cursor/BUGBOT.md`, `src/tauri/.cursor/BUGBOT.md`, and `src/agent/.cursor/BUGBOT.md` encode the rules Bugbot enforces on opened PRs. Enable Bugbot for `vtemian/opnble` in Cursor Settings to activate.
+`.cursor/BUGBOT.md` (project root) plus nested `src/web/.cursor/BUGBOT.md`, `src/tauri/.cursor/BUGBOT.md`, and `src/agent/.cursor/BUGBOT.md` encode the rules Bugbot enforces on opened PRs. Enable Bugbot for this project's GitHub repository in Cursor Settings to activate.
 
 ## Cloud Agent Automations
 
@@ -53,11 +55,11 @@ To extend, add a new event under `hooks` in `hooks.json` and a matching script u
 
 ## MCP servers
 
-`.cursor/mcp.json` registers `opnble-data`, a filesystem MCP scoped to `~/.opnble/` (state.json, project clones, VM artifacts) via a wrapper script in `.cursor/mcp/`.
+`.cursor/mcp.json` registers `opnble-data` (internal name), a filesystem MCP that scopes the agent to runtime data via a wrapper script in `.cursor/mcp/`. The wrapper still points at the legacy `~/.opnble/` location; the launcher's live runtime data now lives under `~/.dotapps/`.
 
 ## Worktrees
 
-`.cursor/worktrees.json` runs `.cursor/setup-worktree-unix.sh` after `/worktree` creates a worktree: copies `.env`, installs frontend deps, fetches Rust deps, prints the `~/.opnble/dev.lock` constraint.
+`.cursor/worktrees.json` runs `.cursor/setup-worktree-unix.sh` after `/worktree` creates a worktree: copies `.env`, installs frontend deps, fetches Rust deps, prints the dev-lock constraint. The operative lockfile is `~/.dotapps/dev.lock`.
 
 ## Project skills
 
@@ -66,8 +68,8 @@ Reusable project workflows live in `.cursor/skills/`:
 - `rust-validate` - Rust fmt, clippy, and tests through Makefile-backed gates
 - `tauri-command` - Tauri IPC command creation and registration
 - `create-component` - React hook, container, component, and UI primitive scaffolding
-- `sharp-edges` - security and footgun audits for Opnble surfaces
-- `opnble-rust-guidelines` - Microsoft Pragmatic Rust Guidelines adapted to Opnble's stricter local rules
+- `sharp-edges` - security and footgun audits for dotapps surfaces
+- `opnble-rust-guidelines` (internal name) - Microsoft Pragmatic Rust Guidelines adapted to this project's stricter local rules
 
 ## Ignore files
 
@@ -75,21 +77,25 @@ Reusable project workflows live in `.cursor/skills/`:
 
 ## Product
 
-Opnble is a native desktop app (macOS, Linux, Windows) that lets non-technical users open and run React or Next.js projects from git repositories locally. The stack bundles tooling so users do not install Node.js, git, or Docker themselves.
+dotapps is a "Dropbox for vibe-coded apps" on macOS (Apple Silicon). A developer packs a Dockerfile project into a `.apps` artifact (zstd tar of `manifest.json` + `image.tar`) with the `dotapps` CLI and publishes it to a Cloudflare Worker + R2 registry. A non-technical operator browses, installs, updates, and runs those apps from a desktop launcher: each app runs as a podman container inside a bundled Alpine VM, opens in its own window, and gets a persistent `/data` volume so its data survives updates. `dotapps://{slug}[@{version}]` deep links install and run an app on click.
+
+The product spans three components: the `dotapps` CLI (`src/cli/`), the registry Worker (`src/worker/`), and the launcher (`src/tauri/` + `src/web/`).
 
 ## Repository map
 
 | Area | Path | Role |
 |------|------|------|
+| CLI | `src/cli/` | `dotapps` CLI (Rust): packs and publishes `.apps` artifacts |
+| Registry | `src/worker/` | Cloudflare Worker + R2 registry (TypeScript) |
 | Frontend | `src/web/` | React 19, TypeScript, Tailwind 4, Vite 7 |
-| Tauri host | `src/tauri/` | Rust backend, IPC commands, VM orchestration, git |
+| Tauri host | `src/tauri/` | Rust backend, IPC commands, app install/run, VM orchestration |
 | VM agent | `src/agent/` | Rust gRPC server inside the VM (sync style, no async executor like the host) |
 
-Data flow (simplified): user adds a repo URL → React calls Tauri commands → Rust clones with libgit2 under `~/.opnble/repos/<project-id>/` → container runner starts Node with the repo mounted → logs stream via Tauri events → UI renders in the embedded webview.
+Data flow (simplified): operator installs an app → React calls Tauri commands → Rust fetches the `.apps` artifact from the registry, unpacks it under `~/.dotapps/repos/{slug}/`, and `podman load`s the image via the VM agent's `ExecHost` RPC → run starts a container with the per-app `/data` volume and forwards its port → the app opens in its own webview window.
 
 ## Makefile is the only dev entrypoint
 
-Use **Makefile targets** for install, dev servers, lint, format, tests, and VM lifecycle. Do **not** run raw commands such as `cargo tauri dev`, `pnpm dev`, or `pkill` for project workflows unless a Makefile target wraps them. A lockfile at `~/.opnble/dev.lock` prevents concurrent dev sessions from corrupting VM state.
+Use **Makefile targets** for install, dev servers, lint, format, tests, and VM lifecycle. Do **not** run raw commands such as `cargo tauri dev`, `pnpm dev`, or `pkill` for project workflows unless a Makefile target wraps them. A lockfile at `~/.dotapps/dev.lock` prevents concurrent dev sessions from corrupting VM state.
 
 Common targets:
 
@@ -121,7 +127,7 @@ Local `make check` runs Clippy for **both** `opnble` and `opnble-agent`, which i
 
 ## User data paths (not in the repo)
 
-Runtime data lives under `~/.opnble/` (clones, `state.json`, VM images, EFI store). Do not assume these paths exist in the workspace.
+Runtime data lives under `~/.dotapps/` (installed apps, app artifacts under `repos/`, `apps.json`, VM image, EFI store). Do not assume these paths exist in the workspace.
 
 ## Cursor workspace rules
 
