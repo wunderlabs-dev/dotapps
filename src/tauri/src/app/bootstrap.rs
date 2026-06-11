@@ -100,6 +100,11 @@ pub fn run() -> Result<(), AppError> {
     let app_store = Arc::new(crate::apps::store::AppStore::load(
         crate::constants::paths::base_dir()?.join("apps.json"),
     ));
+    // No containers run yet; clear stale `running` flags from a prior session
+    // so the Library reflects reality until the auto-start pass re-runs apps.
+    if let Err(e) = app_store.mark_all_stopped() {
+        tracing::error!(error = %e, "cannot reset app running flags on startup");
+    }
     let app_forwards = Arc::new(crate::apps::AppForwards::default());
 
     // Recent-MCP-tool-invocation ring. Constructed here so it lives in

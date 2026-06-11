@@ -77,6 +77,25 @@ impl AppStore {
         self.save(&state)
     }
 
+    /// Clear every app's `running` flag. Called at startup before the VM is
+    /// up, since no containers run yet; the auto-start pass re-runs installed
+    /// apps and sets the flag back to `true`. Without this a crash or reboot
+    /// would leave the Library showing apps as running when they are not.
+    pub fn mark_all_stopped(&self) -> Result<(), AppError> {
+        let mut state = self.state.lock()?;
+        let mut changed = false;
+        for app in state.apps.values_mut() {
+            if app.running {
+                app.running = false;
+                changed = true;
+            }
+        }
+        if changed {
+            self.save(&state)?;
+        }
+        Ok(())
+    }
+
     /// Stable port per slug: reuse the assigned port if present, otherwise
     /// assign (and persist) the first free port >= [`FIRST_PORT`].
     pub fn allocate_port(&self, slug: &str) -> Result<u16, AppError> {
