@@ -116,7 +116,7 @@ pub async fn reboot_windows() -> Result<(), AppError> {
             "/t",
             "5",
             "/c",
-            "Opnble needs to restart Windows to complete WSL2 setup.",
+            "dotapps needs to restart Windows to complete WSL2 setup.",
         ])
         .spawn()
         .map_err(|e| AppError::VmSetupFailed {

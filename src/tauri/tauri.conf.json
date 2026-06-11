@@ -39,7 +39,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "longDescription": "Run React/Next.js projects locally with zero setup. Opnble lets non-technical users run web projects from git repositories without requiring Node.js, npm, or terminal knowledge.",
+    "longDescription": "Run React/Next.js projects locally with zero setup. dotapps lets non-technical users run web projects from git repositories without requiring Node.js, npm, or terminal knowledge.",
     "shortDescription": "One-click local dev environments",
     "targets": "all",
     "resources": {

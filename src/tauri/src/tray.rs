@@ -296,7 +296,7 @@ fn show_main_window(app: &AppHandle) {
             "main",
             tauri::WebviewUrl::App("index.html".into()),
         )
-        .title("Opnble")
+        .title("dotapps")
         .inner_size(1400.0, 900.0)
         .build()
         {

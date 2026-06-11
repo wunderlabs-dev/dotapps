@@ -12,7 +12,7 @@ pub async fn show_window(app: tauri::AppHandle) -> Result<(), AppError> {
         window.set_focus()?;
     } else {
         tauri::WebviewWindowBuilder::new(&app, "main", tauri::WebviewUrl::App("index.html".into()))
-            .title("Opnble")
+            .title("dotapps")
             .inner_size(1400.0, 900.0)
             .build()?;
     }
