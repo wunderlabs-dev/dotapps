@@ -235,31 +235,11 @@ fn spawn_mcp_listener(app: &tauri::AppHandle, listener: Option<tokio::net::TcpLi
     });
 }
 
-/// Deep-merge `mcpServers.opnble` into `~/.cursor/mcp.json` so every
-/// Cursor window sees the local Opnble MCP server. Best-effort: a missing
-/// `~/.cursor/` directory means Cursor is not installed and we skip
-/// silently; an unwritable file is logged but does not block startup
-/// (the per-project install still works for imported projects).
-fn install_global_cursor_mcp(token: &str) {
-    use crate::mcp::install::{write_global_mcp_config, GlobalInstall};
-    match write_global_mcp_config(token, crate::mcp::config::PORT) {
-        Ok(GlobalInstall::Written { path }) => {
-            tracing::info!(
-                path = %path.display(),
-                "installed opnble entry into global cursor mcp.json"
-            );
-        }
-        Ok(GlobalInstall::CursorNotDetected) => {
-            tracing::debug!("cursor not detected on this machine; skipping global mcp install");
-        }
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                "cannot install opnble entry into global cursor mcp.json; \
-                 per-project install still works for imported projects"
-            );
-        }
-    }
+/// Vibox does not integrate with Cursor: writing the global `~/.cursor/mcp.json`
+/// entry here would clobber the entry owned by the opnble app this codebase
+/// was forked from. Intentionally a no-op.
+fn install_global_cursor_mcp(_token: &str) {
+    tracing::debug!("global cursor mcp install disabled in vibox");
 }
 
 fn resolve_cloudflared(app: &tauri::App) {
