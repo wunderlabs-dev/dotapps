@@ -11,9 +11,9 @@ use tokio::io::AsyncWriteExt;
 use super::types::{Manifest, StoreApp};
 use crate::error::AppError;
 
-/// Deployed registry Worker URL. Placeholder until the registry track
-/// deploys; integration fills in the real subdomain.
-pub const DEFAULT_REGISTRY: &str = "https://vibox-registry.REPLACE.workers.dev";
+/// Deployed registry Worker URL. Overridable via `VIBOX_REGISTRY`; the
+/// dotapps rename + `registry.dotapps.club` custom domain land in Phase C0.
+pub const DEFAULT_REGISTRY: &str = "https://vibox-registry.isopusoktoday.workers.dev";
 
 /// The only entries a `.vibox` archive may contain (frozen contract).
 const VIBOX_ENTRIES: [&str; 2] = ["manifest.json", "image.tar"];
