@@ -31,6 +31,7 @@ const dotappsApi = {
   run: (slug: string) => invoke<number>("dotapps_run_app", { slug }),
   stop: (slug: string) => invoke<void>("dotapps_stop_app", { slug }),
   open: (slug: string) => invoke<void>("dotapps_open_app", { slug }),
+  reset: () => invoke<void>("dotapps_reset"),
 };
 
 export type { InstalledApp, Manifest, StoreApp };

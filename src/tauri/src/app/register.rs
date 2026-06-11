@@ -86,6 +86,7 @@ pub fn macos_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         crate::apps::commands::dotapps_run_app,
         crate::apps::commands::dotapps_stop_app,
         crate::apps::commands::dotapps_open_app,
+        crate::apps::commands::dotapps_reset,
         // VM (macOS native)
         crate::app::platform::macos::init_vm,
         crate::app::platform::macos::stop_vm,

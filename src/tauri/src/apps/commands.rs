@@ -286,6 +286,14 @@ pub async fn auto_start_installed(store: &AppStore, vm: &VmLifecycle, forwards: 
     }
 }
 
+/// Reset the launcher to an empty Library (the in-app "Reset" button).
+#[tauri::command]
+#[specta::specta]
+pub async fn dotapps_reset(app: tauri::AppHandle) -> Result<(), AppError> {
+    reset_demo(&app).await;
+    Ok(())
+}
+
 /// Reset to a clean demo state: stop and remove every installed app's
 /// container, wipe its data volume, drop its port forward, close its window,
 /// and empty the store. The VM keeps running. Best-effort throughout so one

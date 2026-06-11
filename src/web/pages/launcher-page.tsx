@@ -29,7 +29,11 @@ const LauncherPage = () => {
 
   return (
     <div className="flex h-full flex-col gap-6 p-8">
-      <LauncherHeader />
+      <LauncherHeader
+        onReset={() => {
+          installed.refetch();
+        }}
+      />
       <div className="flex-1">
         <LibraryTab
           apps={installed.data ?? []}

@@ -221,8 +221,7 @@ fn build_tray_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         )?,
     };
 
-    let reset_demo =
-        MenuItem::with_id(app, "demo_reset", "Reset for demo", true, None::<&str>)?;
+    let reset_demo = MenuItem::with_id(app, "demo_reset", "Reset", true, None::<&str>)?;
 
     let separator1 = PredefinedMenuItem::separator(app)?;
     let dashboard = MenuItem::with_id(app, "dashboard", "Show Dashboard", true, None::<&str>)?;
