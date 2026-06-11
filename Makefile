@@ -193,11 +193,11 @@ test-frontend:
 # Run all tests
 test-all: test test-frontend
 
-# Typecheck the Cloudflare tunnel worker
+# Typecheck the dotapps registry worker
 worker-check:
 	cd src/worker && npm ci && npm run check
 
-# Deploy the Cloudflare tunnel worker (requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID)
+# Deploy the dotapps registry worker (requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID)
 worker-deploy:
 	cd src/worker && npm run deploy
 
@@ -251,7 +251,7 @@ fmt: fmt-frontend
 
 # Show help
 help:
-	@echo "Opnble Development Commands"
+	@echo "dotapps Development Commands"
 	@echo ""
 	@echo "  make install      - Install all dependencies"
 	@echo "  make dev-frontend - Start Vite dev server independently"
@@ -270,8 +270,8 @@ help:
 	@echo "  make fmt-check    - Check formatting without changing files"
 	@echo "  make skills-check - Validate Cursor project skill metadata"
 	@echo "  make test         - Run Rust tests (host + agent)"
-	@echo "  make worker-check - Typecheck the Cloudflare tunnel worker"
-	@echo "  make worker-deploy - Deploy the Cloudflare tunnel worker"
+	@echo "  make worker-check - Typecheck the dotapps registry worker"
+	@echo "  make worker-deploy - Deploy the dotapps registry worker"
 	@echo "  make lint-frontend - Lint frontend (Biome + ESLint)"
 	@echo "  make fmt          - Format all code (frontend + Rust)"
 	@echo ""
