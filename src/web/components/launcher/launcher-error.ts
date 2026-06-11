@@ -1,7 +1,7 @@
 import { translateError } from "@/lib/errors";
 
 /**
- * Human-readable message for failed vibox commands. The raw invoke() rejection
+ * Human-readable message for failed dotapps commands. The raw invoke() rejection
  * carries the useful detail (registry URL, podman stderr), so prefer it over
  * the generic fallback message.
  */

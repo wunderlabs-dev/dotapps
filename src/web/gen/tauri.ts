@@ -464,9 +464,9 @@ async revealLogsFolder() : Promise<Result<string, AppError>> {
 /**
  * `GET /v1/apps` from the registry: everything installable.
  */
-async viboxRegistryApps() : Promise<Result<StoreApp[], AppError>> {
+async dotappsRegistryApps() : Promise<Result<StoreApp[], AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_registry_apps") };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_registry_apps") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -476,22 +476,22 @@ async viboxRegistryApps() : Promise<Result<StoreApp[], AppError>> {
  * Installed apps from the local store (store state is the source of truth
  * for `running`; no podman round-trip).
  */
-async viboxInstalledApps() : Promise<Result<InstalledApp[], AppError>> {
+async dotappsInstalledApps() : Promise<Result<InstalledApp[], AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_installed_apps") };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_installed_apps") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Install (or update) an app: download the `.vibox`, unpack it into the
+ * Install (or update) an app: download the `.apps`, unpack it into the
  * shared repos dir, and `podman load` the image inside the VM. The host
  * port assignment survives updates; the data volume is version-independent.
  */
-async viboxInstallApp(slug: string) : Promise<Result<InstalledApp, AppError>> {
+async dotappsInstallApp(slug: string) : Promise<Result<InstalledApp, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_install_app", { slug }) };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_install_app", { slug }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -500,9 +500,9 @@ async viboxInstallApp(slug: string) : Promise<Result<InstalledApp, AppError>> {
 /**
  * Run an installed app and return its host port.
  */
-async viboxRunApp(slug: string) : Promise<Result<number, AppError>> {
+async dotappsRunApp(slug: string) : Promise<Result<number, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_run_app", { slug }) };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_run_app", { slug }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -511,9 +511,9 @@ async viboxRunApp(slug: string) : Promise<Result<number, AppError>> {
 /**
  * Stop a running app's container and tear down its port forward.
  */
-async viboxStopApp(slug: string) : Promise<Result<null, AppError>> {
+async dotappsStopApp(slug: string) : Promise<Result<null, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_stop_app", { slug }) };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_stop_app", { slug }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -522,9 +522,9 @@ async viboxStopApp(slug: string) : Promise<Result<null, AppError>> {
 /**
  * Open (or focus) the app's dedicated window pointing at its host port.
  */
-async viboxOpenApp(slug: string) : Promise<Result<null, AppError>> {
+async dotappsOpenApp(slug: string) : Promise<Result<null, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vibox_open_app", { slug }) };
+    return { status: "ok", data: await TAURI_INVOKE("dotapps_open_app", { slug }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -745,11 +745,11 @@ export type GitHubRepo = { id: number; name: string; full_name: string; private:
  */
 export type GitHubUser = { login: string; avatar_url: string }
 /**
- * An app installed on this host, persisted in `~/.vibox/apps.json`.
+ * An app installed on this host, persisted in `~/.dotapps/apps.json`.
  */
 export type InstalledApp = { manifest: Manifest; hostPort: number | null; running?: boolean }
 /**
- * App manifest as published to the registry (`vibox.json` / `manifest.json`).
+ * App manifest as published to the registry (`dotapps.json` / `manifest.json`).
  */
 export type Manifest = { name: string; slug: string; version: string; icon: string; internalPort: number; description?: string }
 /**

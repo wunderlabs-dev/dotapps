@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Card, CardBody, CardFooter, Typography } from "@/components/ui";
-import type { Manifest } from "@/lib/vibox";
+import type { Manifest } from "@/lib/dotapps";
 
 interface AppTileProps {
   readonly manifest: Manifest;

@@ -2,8 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui";
 import { useToastContext } from "@/context";
-import type { StoreApp } from "@/lib/vibox";
-import { viboxApi } from "@/lib/vibox";
+import type { StoreApp } from "@/lib/dotapps";
+import { dotappsApi } from "@/lib/dotapps";
 import { AppTile } from "./app-tile";
 import { describeError } from "./launcher-error";
 import { LauncherMessage } from "./launcher-message";
@@ -17,7 +17,7 @@ interface StoreTabProps {
 const useInstallAction = (onInstalled: () => void) => {
   const { showToast } = useToastContext();
   return useMutation({
-    mutationFn: (app: StoreApp) => viboxApi.install(app.manifest.slug),
+    mutationFn: (app: StoreApp) => dotappsApi.install(app.manifest.slug),
     onSuccess: (_installed, app) => {
       showToast(`Installed ${app.manifest.name}`, "success");
       onInstalled();
@@ -39,7 +39,7 @@ const StoreTab = ({ apps, error, onInstalled }: StoreTabProps) => {
     return (
       <LauncherMessage
         title="Store is empty"
-        detail="Publish an app with the vibox CLI to see it here."
+        detail="Publish an app with the dotapps CLI to see it here."
       />
     );
   }

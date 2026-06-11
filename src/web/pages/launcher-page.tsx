@@ -5,7 +5,7 @@ import { LauncherHeader } from "@/components/launcher/launcher-header";
 import { LibraryTab } from "@/components/launcher/library-tab";
 import { StoreTab } from "@/components/launcher/store-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { viboxApi } from "@/lib/vibox";
+import { dotappsApi } from "@/lib/dotapps";
 
 const INSTALLED_REFETCH_MS = 2000;
 const STORE_REFETCH_MS = 5000;
@@ -14,13 +14,13 @@ const STORE_TAB = "store";
 
 const useLauncherQueries = () => {
   const installed = useQuery({
-    queryKey: ["vibox", "installed"],
-    queryFn: viboxApi.installedApps,
+    queryKey: ["dotapps", "installed"],
+    queryFn: dotappsApi.installedApps,
     refetchInterval: INSTALLED_REFETCH_MS,
   });
   const store = useQuery({
-    queryKey: ["vibox", "store"],
-    queryFn: viboxApi.registryApps,
+    queryKey: ["dotapps", "store"],
+    queryFn: dotappsApi.registryApps,
     refetchInterval: STORE_REFETCH_MS,
   });
   return { installed, store };

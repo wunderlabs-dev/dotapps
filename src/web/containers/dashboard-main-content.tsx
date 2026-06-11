@@ -24,7 +24,7 @@ const DashboardMainContent = ({
   const navigate = useNavigate();
 
   if (wiring.projects.length === 0 || !project) {
-    // The import flow is unrouted in vibox; fall back to the launcher.
+    // The import flow is unrouted in dotapps; fall back to the launcher.
     const handleImport = () => {
       navigate({ to: "/" });
     };

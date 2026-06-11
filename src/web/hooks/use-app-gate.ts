@@ -11,7 +11,7 @@ import { useVmImageSetup } from "./use-vm-image-setup";
 
 type AppPhase = "launching" | "ready";
 
-// vibox has no accounts: the launcher boots straight into the library as a
+// dotapps has no accounts: the launcher boots straight into the library as a
 // local operator. The stub satisfies components that still expect a user.
 const STUB_USER: GitHubUser = { login: "operator", avatar_url: "" };
 

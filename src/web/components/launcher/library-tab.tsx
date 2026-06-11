@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { useToastContext } from "@/context";
-import type { InstalledApp, StoreApp } from "@/lib/vibox";
-import { viboxApi } from "@/lib/vibox";
+import type { InstalledApp, StoreApp } from "@/lib/dotapps";
+import { dotappsApi } from "@/lib/dotapps";
 import { describeError } from "./launcher-error";
 import { LauncherMessage } from "./launcher-message";
 import { LibraryAppCard } from "./library-app-card";
@@ -23,9 +23,9 @@ const useOpenAction = (onChanged: () => void) => {
   return useMutation({
     mutationFn: async (app: InstalledApp) => {
       if (!app.running) {
-        await viboxApi.run(app.manifest.slug);
+        await dotappsApi.run(app.manifest.slug);
       }
-      await viboxApi.open(app.manifest.slug);
+      await dotappsApi.open(app.manifest.slug);
     },
     onSuccess: onChanged,
     onError: (error) => {
@@ -38,8 +38,8 @@ const useUpdateAction = (onChanged: () => void) => {
   const { showToast } = useToastContext();
   return useMutation({
     mutationFn: async ({ slug }: UpdateArgs) => {
-      await viboxApi.install(slug);
-      await viboxApi.run(slug);
+      await dotappsApi.install(slug);
+      await dotappsApi.run(slug);
     },
     onSuccess: (_result, { version }) => {
       showToast(`Updated to v${version} — data preserved`, "success");

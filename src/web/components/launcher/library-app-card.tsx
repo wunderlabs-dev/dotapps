@@ -1,5 +1,5 @@
 import { Badge, Button } from "@/components/ui";
-import type { InstalledApp } from "@/lib/vibox";
+import type { InstalledApp } from "@/lib/dotapps";
 import { AppTile } from "./app-tile";
 
 interface LibraryAppCardProps {
