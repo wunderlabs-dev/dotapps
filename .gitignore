@@ -50,8 +50,4 @@ src/tauri/binaries/*
 # VM image build artifacts
 build/
 
-# Design/plan documents (not shipped). Pattern is `docs/*` not `docs/` so the
-# directory itself is traversable and per-file exceptions below work.
-docs/*
-# Exception: release-setup.md is referenced by Rust comments and must stay tracked.
-!docs/release-setup.md
+# Design/plan documents are tracked in vibox.
