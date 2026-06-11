@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { LauncherHeader } from "@/components/launcher/launcher-header";
 import { LibraryTab } from "@/components/launcher/library-tab";
+import { useDeeplinkInstalls } from "@/hooks/use-deeplink-installs";
 import { dotappsApi } from "@/lib/dotapps";
 
 const INSTALLED_REFETCH_MS = 2000;
@@ -26,6 +27,9 @@ const useLauncherQueries = () => {
 
 const LauncherPage = () => {
   const { installed, store } = useLauncherQueries();
+  const installing = useDeeplinkInstalls(() => {
+    installed.refetch();
+  });
 
   return (
     <div className="flex h-full flex-col gap-6 p-8">
@@ -38,6 +42,7 @@ const LauncherPage = () => {
         <LibraryTab
           apps={installed.data ?? []}
           storeApps={store.data ?? []}
+          installing={installing}
           onChanged={() => {
             installed.refetch();
           }}
