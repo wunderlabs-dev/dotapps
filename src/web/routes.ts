@@ -9,8 +9,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AppLayout } from "@/layouts/app-layout";
 import { GateLayout } from "@/layouts/gate-layout";
 import { RootLayout } from "@/layouts/root-layout";
-import { ImportPage } from "@/pages/import-page";
-import { ProjectListPage } from "@/pages/project-list-page";
+import { LauncherPage } from "@/pages/launcher-page";
 import { Settings } from "@/pages/settings";
 
 const rootRoute = createRootRoute({
@@ -32,13 +31,7 @@ const appLayoutRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/",
-  component: ProjectListPage,
-});
-
-const importRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: "/import",
-  component: ImportPage,
+  component: LauncherPage,
 });
 
 const settingsRoute = createRoute({
@@ -50,7 +43,7 @@ const settingsRoute = createRoute({
 const hashHistory = createHashHistory();
 
 const routeTree = rootRoute.addChildren([
-  gateRoute.addChildren([appLayoutRoute.addChildren([indexRoute, importRoute]), settingsRoute]),
+  gateRoute.addChildren([appLayoutRoute.addChildren([indexRoute]), settingsRoute]),
 ]);
 
 const router = createRouter({ routeTree, history: hashHistory });
