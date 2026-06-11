@@ -74,6 +74,23 @@ impl PlatformBootstrap for MacosBoot {
                             .cleanup_orphaned_tunnels(&token, store.as_ref())
                             .await;
                     }
+
+                    // Auto-run installed vibox apps now that the VM is up.
+                    // Failures are logged per-app inside the helper; one
+                    // broken app must not block the others.
+                    let app_store = Arc::clone(
+                        app_handle
+                            .state::<Arc<crate::apps::store::AppStore>>()
+                            .inner(),
+                    );
+                    let forwards =
+                        Arc::clone(app_handle.state::<Arc<crate::apps::AppForwards>>().inner());
+                    crate::apps::commands::auto_start_installed(
+                        &app_store,
+                        &lifecycle_clone,
+                        &forwards,
+                    )
+                    .await;
                 }
                 Err(e) => {
                     tray::update_tray_status(&app_handle, tray::STATUS_STOPPED);
