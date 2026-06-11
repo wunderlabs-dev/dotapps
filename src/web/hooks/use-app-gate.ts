@@ -9,9 +9,11 @@ import { checkAndSetupPlatform, STATUS_CHECKING } from "@/lib/setup-utils";
 
 import { useVmImageSetup } from "./use-vm-image-setup";
 
-const AUTH_PROVIDER = "github";
+type AppPhase = "launching" | "ready";
 
-type AppPhase = "launching" | "login" | "ready";
+// vibox has no accounts: the launcher boots straight into the library as a
+// local operator. The stub satisfies components that still expect a user.
+const STUB_USER: GitHubUser = { login: "operator", avatar_url: "" };
 
 interface SetupSetters {
   readonly setSetupStatus: (s: SetupStatus) => void;
@@ -68,10 +70,9 @@ const useSetupPhase = (onSetupComplete: () => void) => {
       setStatus: setSetupStatus,
       setError: setSetupError,
       setCurrentPlatform,
-      startVmImage: vmImage.startVmImage,
       onComplete: onSetupComplete,
     });
-  }, [onSetupComplete, vmImage.startVmImage]);
+  }, [onSetupComplete]);
 
   useEffect(() => {
     checkAndSetup();
@@ -91,101 +92,20 @@ const useSetupPhase = (onSetupComplete: () => void) => {
   };
 };
 
-const fetchGitHubUser = async (
-  token: string,
-  setUser: (u: GitHubUser) => void,
-  setError: (e: UserError) => void,
-) => {
-  const userFetch = await fromTauriResult(commands.githubUser(token));
-  return userFetch.match(
-    (fetched) => {
-      setUser(fetched);
-      return true;
-    },
-    (e) => {
-      setError(translateError(e));
-      return false;
-    },
-  );
-};
-
-const useAuthPhase = () => {
-  const [user, setUser] = useState<GitHubUser | null>(null);
-  const [authError, setAuthError] = useState<UserError | null>(null);
-
-  const checkAuth = useCallback(async () => {
-    setAuthError(null);
-
-    const tokenResult = await fromTauriResult(commands.authToken(AUTH_PROVIDER));
-    if (tokenResult.isErr()) {
-      setAuthError(translateError(tokenResult.error));
-      return false;
-    }
-    const token = tokenResult.value;
-    if (!token) return false;
-
-    const validResult = await fromTauriResult(commands.validateAuthToken(AUTH_PROVIDER));
-    if (validResult.isErr()) {
-      setAuthError(translateError(validResult.error));
-      return false;
-    }
-    if (!validResult.value) return false;
-
-    return fetchGitHubUser(token, setUser, setAuthError);
-  }, []);
-
-  const onAuthenticated = async (token: string) => fetchGitHubUser(token, setUser, setAuthError);
-
-  const logout = async () => {
-    (await fromTauriResult(commands.deleteAuthToken(AUTH_PROVIDER))).mapErr(() => {});
-    // best-effort: ignore errors
-    setUser(null);
-  };
-
-  return { user, authError, checkAuth, onAuthenticated, logout };
-};
-
 const useAppGate = () => {
   const [phase, setPhase] = useState<AppPhase>("launching");
 
   const onSetupComplete = useCallback(() => {
-    setPhase("login");
+    setPhase("ready");
   }, []);
 
   const setup = useSetupPhase(onSetupComplete);
-  const auth = useAuthPhase();
-  const { checkAuth } = auth;
-
-  // Skip login screen when token already exists in keychain
-  useEffect(() => {
-    if (phase !== "login") return;
-    const check = async () => {
-      const authenticated = await checkAuth();
-      if (authenticated) {
-        setPhase("ready");
-      }
-    };
-    check();
-  }, [phase, checkAuth]);
-
-  const onLoginComplete = async (token: string) => {
-    const success = await auth.onAuthenticated(token);
-    if (success) {
-      setPhase("ready");
-    }
-  };
-
-  const handleLogout = async () => {
-    await auth.logout();
-    setPhase("login");
-  };
 
   return {
     phase,
     setup,
-    auth,
-    onLoginComplete,
-    handleLogout,
+    user: STUB_USER,
+    handleLogout: () => {},
   };
 };
 

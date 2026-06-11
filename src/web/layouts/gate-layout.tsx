@@ -1,19 +1,11 @@
 import { Outlet } from "@tanstack/react-router";
 
 import { LaunchingScreen } from "@/components/launching-screen";
-import { LoginScreen } from "@/components/login-screen";
 import { GateContextProvider } from "@/context";
 import { useAppGate } from "@/hooks/use-app-gate";
-import { useOAuthFlow } from "@/hooks/use-oauth-flow";
 
 const GateLayout = () => {
   const gate = useAppGate();
-
-  const handleToken = async (token: string) => {
-    await gate.onLoginComplete(token);
-  };
-
-  const oauth = useOAuthFlow("github", handleToken);
 
   if (gate.phase === "launching") {
     return (
@@ -38,12 +30,8 @@ const GateLayout = () => {
     );
   }
 
-  if (gate.phase === "login") {
-    return <LoginScreen oauth={oauth} authError={gate.auth.authError} />;
-  }
-
   return (
-    <GateContextProvider value={{ user: gate.auth.user, onLogout: gate.handleLogout }}>
+    <GateContextProvider value={{ user: gate.user, onLogout: gate.handleLogout }}>
       <Outlet />
     </GateContextProvider>
   );

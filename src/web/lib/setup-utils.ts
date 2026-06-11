@@ -22,7 +22,6 @@ type SetupStatus =
 
 type StatusSetter = (s: SetupStatus) => void;
 type ErrorSetter = (e: UserError | null) => void;
-type VmImageStarter = () => Promise<void>;
 
 const STATUS_CHECKING = "checking";
 const STATUS_CHECKING_FILES = "checking-files";
@@ -53,25 +52,13 @@ const resolveWslDefault = (wslStatus: string) => {
   return `Unknown status: ${wslStatus}`;
 };
 
-const setupMacOS = async (
-  setStatus: StatusSetter,
-  startVmImage: VmImageStarter,
-  onComplete: () => void,
-) => {
+const setupMacOS = async (setStatus: StatusSetter, onComplete: () => void) => {
   const settingsResult = await fromTauriResult(commands.settings());
   // eslint-disable-next-line @typescript-eslint/only-throw-error -- typed error value caught by checkAndSetupPlatform's try/catch
   if (settingsResult.isErr()) throw settingsResult.error;
   if (!settingsResult.value.autoStartVm) {
     onComplete();
     return;
-  }
-
-  const statusResult = await fromTauriResult(commands.vmImageStatus());
-  // eslint-disable-next-line @typescript-eslint/only-throw-error -- typed error value caught by checkAndSetupPlatform's try/catch
-  if (statusResult.isErr()) throw statusResult.error;
-  if (statusResult.value.needed) {
-    setStatus(STATUS_VM_IMAGE_WELCOME);
-    await startVmImage();
   }
 
   setStatus(STATUS_STARTING_VM);
@@ -124,12 +111,11 @@ interface CheckAndSetupOptions {
   readonly setStatus: StatusSetter;
   readonly setError: ErrorSetter;
   readonly setCurrentPlatform: (p: string) => void;
-  readonly startVmImage: VmImageStarter;
   readonly onComplete: () => void;
 }
 
 const checkAndSetupPlatform = async (options: CheckAndSetupOptions) => {
-  const { setStatus, setError, setCurrentPlatform, startVmImage, onComplete } = options;
+  const { setStatus, setError, setCurrentPlatform, onComplete } = options;
   try {
     setStatus(STATUS_CHECKING);
     setError(null);
@@ -144,7 +130,7 @@ const checkAndSetupPlatform = async (options: CheckAndSetupOptions) => {
 
     await match(os)
       .with("windows", () => setupWindows(setStatus, setError, onComplete))
-      .with("macos", () => setupMacOS(setStatus, startVmImage, onComplete))
+      .with("macos", () => setupMacOS(setStatus, onComplete))
       .otherwise(async () => {
         setStatus(STATUS_SETTING_UP);
         await setupLinux(setStatus, onComplete);
@@ -155,7 +141,7 @@ const checkAndSetupPlatform = async (options: CheckAndSetupOptions) => {
   }
 };
 
-export type { CheckAndSetupOptions, ErrorSetter, SetupStatus, StatusSetter, VmImageStarter };
+export type { CheckAndSetupOptions, ErrorSetter, SetupStatus, StatusSetter };
 export {
   checkAndSetupPlatform,
   STATUS_CHECKING,
