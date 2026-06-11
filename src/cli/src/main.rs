@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "vibox", version, about = "Pack and publish vibox apps")]
+#[command(name = "dotapps", version, about = "Pack and publish dotapps apps")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -16,21 +16,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Build the project's Docker image and pack it into a .vibox archive
+    /// Build the project's Docker image and pack it into a .apps archive
     Pack {
-        /// Project directory containing vibox.json and a Dockerfile
+        /// Project directory containing dotapps.json and a Dockerfile
         #[arg(long, default_value = ".")]
         dir: PathBuf,
-        /// Output path (defaults to {slug}-{version}.vibox in the current directory)
+        /// Output path (defaults to {slug}-{version}.apps in the current directory)
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Upload a .vibox archive to the registry
+    /// Upload a .apps archive to the registry
     Publish {
-        /// Archive to publish (defaults to the newest *.vibox in the current directory)
+        /// Archive to publish (defaults to the newest *.apps in the current directory)
         #[arg(long)]
         file: Option<PathBuf>,
-        #[arg(long, help = "Registry base URL (defaults to $VIBOX_REGISTRY)")]
+        #[arg(long, help = "Registry base URL (defaults to $DOTAPPS_REGISTRY)")]
         registry: Option<String>,
     },
 }

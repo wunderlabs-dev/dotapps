@@ -6,8 +6,8 @@ use anyhow::{bail, Context, Result};
 use crate::archive;
 use crate::manifest::Manifest;
 
-/// `vibox pack`: build the Docker image for the project in `dir` and write a
-/// `.vibox` archive (default `{slug}-{version}.vibox` in the current directory).
+/// `dotapps pack`: build the Docker image for the project in `dir` and write a
+/// `.apps` archive (default `{slug}-{version}.apps` in the current directory).
 pub fn run(dir: &Path, out: Option<&Path>) -> Result<()> {
     let manifest = read_project_manifest(dir)?;
     let tag = manifest.image_tag();
@@ -20,7 +20,7 @@ pub fn run(dir: &Path, out: Option<&Path>) -> Result<()> {
     let tmp_dir = tempfile::tempdir().context("failed to create temp directory")?;
     let image_tar = tmp_dir.path().join(archive::IMAGE_ENTRY);
     save_image(&tag, &image_tar)?;
-    archive::create_vibox(&manifest, &image_tar, &out)?;
+    archive::create_artifact(&manifest, &image_tar, &out)?;
 
     let size = std::fs::metadata(&out)
         .with_context(|| format!("failed to stat {}", out.display()))?
@@ -34,10 +34,10 @@ pub fn run(dir: &Path, out: Option<&Path>) -> Result<()> {
 }
 
 fn read_project_manifest(dir: &Path) -> Result<Manifest> {
-    let path = dir.join("vibox.json");
+    let path = dir.join("dotapps.json");
     let bytes = std::fs::read(&path).with_context(|| {
         format!(
-            "failed to read {} — does the project have a vibox.json?",
+            "failed to read {} — does the project have a dotapps.json?",
             path.display()
         )
     })?;
@@ -52,7 +52,7 @@ fn read_project_manifest(dir: &Path) -> Result<Manifest> {
 }
 
 fn default_out_path(manifest: &Manifest) -> PathBuf {
-    PathBuf::from(format!("{}-{}.vibox", manifest.slug, manifest.version))
+    PathBuf::from(format!("{}-{}.apps", manifest.slug, manifest.version))
 }
 
 /// Runs `docker build` with inherited stdio so build progress stays visible.
@@ -110,7 +110,7 @@ mod tests {
         .expect("manifest parses");
         assert_eq!(
             default_out_path(&manifest),
-            PathBuf::from("smoke-cli-0.0.1.vibox")
+            PathBuf::from("smoke-cli-0.0.1.apps")
         );
     }
 
@@ -123,11 +123,11 @@ mod tests {
     }
 
     #[test]
-    fn read_project_manifest_reports_missing_vibox_json() {
+    fn read_project_manifest_reports_missing_dotapps_json() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let error = read_project_manifest(dir.path()).expect_err("missing vibox.json must fail");
+        let error = read_project_manifest(dir.path()).expect_err("missing dotapps.json must fail");
         assert!(
-            error.to_string().contains("vibox.json"),
+            error.to_string().contains("dotapps.json"),
             "error should name the file: {error}"
         );
     }
@@ -136,10 +136,10 @@ mod tests {
     fn read_project_manifest_parses_project_file() {
         let dir = tempfile::tempdir().expect("tempdir");
         std::fs::write(
-            dir.path().join("vibox.json"),
+            dir.path().join("dotapps.json"),
             r#"{ "name": "Smoke", "slug": "smoke-cli", "version": "0.0.1", "icon": "🧪", "internalPort": 8000, "description": "" }"#,
         )
-        .expect("write vibox.json");
+        .expect("write dotapps.json");
         let manifest = read_project_manifest(dir.path()).expect("manifest parses");
         assert_eq!(manifest.slug, "smoke-cli");
         assert_eq!(manifest.version, "0.0.1");

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// App manifest carried as `manifest.json` inside a `.vibox` archive and as
-/// `vibox.json` in a project directory.
+/// App manifest carried as `manifest.json` inside a `.apps` archive and as
+/// `dotapps.json` in a project directory.
 ///
 /// The wire format is frozen camelCase JSON (e.g. `internalPort`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,9 +17,9 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Docker image tag the packed image carries: `vibox/{slug}:{version}`.
+    /// Docker image tag the packed image carries: `dotapps/{slug}:{version}`.
     pub fn image_tag(&self) -> String {
-        format!("vibox/{}:{}", self.slug, self.version)
+        format!("dotapps/{}:{}", self.slug, self.version)
     }
 
     /// Validates identifier fields before they reach URLs, file names, image
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn image_tag_follows_frozen_contract() {
         let manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
-        assert_eq!(manifest.image_tag(), "vibox/cafe-tracker:1.0.0");
+        assert_eq!(manifest.image_tag(), "dotapps/cafe-tracker:1.0.0");
     }
 
     #[test]

@@ -21,18 +21,18 @@ struct CompleteResponse {
     ok: bool,
 }
 
-/// `vibox publish`: upload a `.vibox` archive to the registry.
+/// `dotapps publish`: upload a `.apps` archive to the registry.
 ///
-/// The archive defaults to the newest `*.vibox` in the current directory, the
-/// registry to `$VIBOX_REGISTRY`; the publish token comes from `$VIBOX_TOKEN`.
+/// The archive defaults to the newest `*.apps` in the current directory, the
+/// registry to `$DOTAPPS_REGISTRY`; the publish token comes from `$DOTAPPS_TOKEN`.
 pub fn run(file: Option<&Path>, registry: Option<&str>) -> Result<()> {
     let registry = resolve_registry(registry)?;
     let registry_url = ensure_safe_registry(&registry)?;
-    let token = std::env::var("VIBOX_TOKEN")
-        .context("VIBOX_TOKEN is not set — export the registry publish token")?;
+    let token = std::env::var("DOTAPPS_TOKEN")
+        .context("DOTAPPS_TOKEN is not set — export the registry publish token")?;
     let file = match file {
         Some(file) => file.to_path_buf(),
-        None => newest_vibox(Path::new("."))?,
+        None => newest_artifact(Path::new("."))?,
     };
     let manifest = archive::read_manifest(&file)?;
     manifest.validate()?;
@@ -83,19 +83,19 @@ fn resolve_registry(flag: Option<&str>) -> Result<String> {
     if let Some(registry) = flag {
         return Ok(registry.to_owned());
     }
-    std::env::var("VIBOX_REGISTRY")
-        .context("no registry specified — pass --registry or set VIBOX_REGISTRY")
+    std::env::var("DOTAPPS_REGISTRY")
+        .context("no registry specified — pass --registry or set DOTAPPS_REGISTRY")
 }
 
-/// Newest `*.vibox` in `dir` by modification time.
-fn newest_vibox(dir: &Path) -> Result<PathBuf> {
+/// Newest `*.apps` in `dir` by modification time.
+fn newest_artifact(dir: &Path) -> Result<PathBuf> {
     let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read directory {}", dir.display()))?;
     for entry in entries {
         let entry = entry.context("failed to read directory entry")?;
         let path = entry.path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some("vibox") {
+        if path.extension().and_then(std::ffi::OsStr::to_str) != Some("apps") {
             continue;
         }
         let modified = entry
@@ -109,7 +109,7 @@ fn newest_vibox(dir: &Path) -> Result<PathBuf> {
     match newest {
         Some((_, path)) => Ok(path),
         None => bail!(
-            "no *.vibox files in {} — run `vibox pack` first or pass --file",
+            "no *.apps files in {} — run `dotapps pack` first or pass --file",
             dir.display()
         ),
     }
@@ -222,7 +222,7 @@ fn execute(client: &Client, request: Request, what: &str) -> Result<Response> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_complete_request, build_start_request, build_upload_request, newest_vibox,
+        build_complete_request, build_start_request, build_upload_request, newest_artifact,
         versions_url, StartUploadResponse,
     };
     use crate::manifest::Manifest;
@@ -290,7 +290,7 @@ mod tests {
 
     fn open_blob() -> File {
         let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("app.vibox");
+        let path = dir.path().join("app.apps");
         std::fs::write(&path, b"bytes").expect("write archive");
         File::open(&path).expect("open archive")
     }
@@ -301,7 +301,7 @@ mod tests {
         let request = build_upload_request(
             &client,
             &registry_url(),
-            "https://reg.example/v1/blob/apps/x/1.0.0/app.vibox",
+            "https://reg.example/v1/blob/apps/x/1.0.0/app.apps",
             "tok-123",
             open_blob(),
             5,
@@ -387,10 +387,10 @@ mod tests {
     }
 
     #[test]
-    fn newest_vibox_picks_most_recently_modified() {
+    fn newest_artifact_picks_most_recently_modified() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let old = dir.path().join("old-1.0.0.vibox");
-        let new = dir.path().join("new-2.0.0.vibox");
+        let old = dir.path().join("old-1.0.0.apps");
+        let new = dir.path().join("new-2.0.0.apps");
         std::fs::write(&old, b"old").expect("write old");
         std::fs::write(&new, b"new").expect("write new");
         std::fs::write(dir.path().join("notes.txt"), b"not an archive").expect("write decoy");
@@ -409,15 +409,15 @@ mod tests {
             .set_modified(base + Duration::from_secs(60))
             .expect("set new mtime");
 
-        assert_eq!(newest_vibox(dir.path()).expect("newest archive"), new);
+        assert_eq!(newest_artifact(dir.path()).expect("newest archive"), new);
     }
 
     #[test]
-    fn newest_vibox_errors_when_directory_has_none() {
+    fn newest_artifact_errors_when_directory_has_none() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let error = newest_vibox(dir.path()).expect_err("empty dir must fail");
+        let error = newest_artifact(dir.path()).expect_err("empty dir must fail");
         assert!(
-            error.to_string().contains("no *.vibox"),
+            error.to_string().contains("no *.apps"),
             "error should explain: {error}"
         );
     }
