@@ -51,3 +51,6 @@ src/tauri/binaries/*
 build/
 
 # Design/plan documents are tracked in vibox.
+
+# Python bytecode (demo apps)
+__pycache__/
