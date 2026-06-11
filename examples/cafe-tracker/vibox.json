@@ -1,0 +1,8 @@
+{
+  "name": "Cafe Tracker",
+  "slug": "cafe-tracker",
+  "version": "1.0.0",
+  "icon": "☕",
+  "internalPort": 8000,
+  "description": "Log coffee bean deliveries"
+}
