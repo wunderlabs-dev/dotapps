@@ -38,6 +38,16 @@ token only sent to registry-origin URLs; https-only registries (loopback http al
 `wrangler dev`); slug/version/port validated at both CLI entry points; random exclusive
 temp dir for pack. The Worker already enforced slug/version validation server-side.
 
+**E. Deep-link distribution (added mid-execution).** `dotapps://{slug}[@{version}]`
+installs (and launches) an app on click. Implemented: worker route
+`GET /v1/apps/{slug}/versions/{version}`; `registry::fetch_version` +
+`install_inner(version: Option)`; `apps/deeplink.rs` (hand-parses the URL so `@`
+isn't read as userinfo, waits for VM, install→run→open→focus); `tauri-plugin-deep-link`
+with the `dotapps` scheme in `Info.plist` (`CFBundleURLTypes`) + `tauri.conf.json` +
+`capabilities`; `VmLifecycle::wait_until_running` for cold-launch links. Demo needs the
+bundled `.app` (Launch Services) — dev mode uses runtime `register_all` (finicky).
+Runbook: `docs/DEMO.md`.
+
 **D. Phase C is now:**
 - **C0 Rename pass** (after B1 merges): apply table A across Rust/TS/worker/examples/docs;
   redeploy worker as dotapps-registry with fresh PUBLISH_TOKEN; update docs/registry-deploy.md;
