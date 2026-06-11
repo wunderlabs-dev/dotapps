@@ -11,11 +11,10 @@ use tokio::io::AsyncWriteExt;
 use super::types::{Manifest, StoreApp};
 use crate::error::AppError;
 
-/// Deployed registry Worker URL. Overridable via `DOTAPPS_REGISTRY`. The
-/// branded `registry.dotapps.club` custom domain is also bound and takes over
-/// once the zone's nameservers finish propagating; the workers.dev URL stays
-/// reachable regardless.
-pub const DEFAULT_REGISTRY: &str = "https://dotapps-registry.isopusoktoday.workers.dev";
+/// Deployed registry URL. Overridable via `DOTAPPS_REGISTRY`. Uses the branded
+/// custom domain; the worker is also reachable at
+/// `dotapps-registry.isopusoktoday.workers.dev` as a fallback.
+pub const DEFAULT_REGISTRY: &str = "https://registry.dotapps.club";
 
 /// The only entries a `.apps` archive may contain (frozen contract).
 const DOTAPPS_ENTRIES: [&str; 2] = ["manifest.json", "image.tar"];
