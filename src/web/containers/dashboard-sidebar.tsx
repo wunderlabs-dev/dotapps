@@ -38,7 +38,8 @@ const DashboardSidebar = ({ wiring, user, search }: DashboardSidebarProps) => {
       <SidebarFooter
         user={user}
         onImport={() => {
-          navigate({ to: "/import" });
+          // The import flow is unrouted in vibox; fall back to the launcher.
+          navigate({ to: "/" });
         }}
       />
     </Sidebar>
