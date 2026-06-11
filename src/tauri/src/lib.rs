@@ -4,6 +4,7 @@
 //! live under `app/`.
 
 mod app;
+pub mod apps;
 mod auth;
 mod constants;
 mod diagnostics;
