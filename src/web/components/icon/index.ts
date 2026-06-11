@@ -13,8 +13,6 @@ export { SvgIconGear } from "./svg-icon-gear";
 export { SvgIconLink } from "./svg-icon-link";
 export { SvgIconMagnifier } from "./svg-icon-magnifier";
 export { SvgIconNextjs } from "./svg-icon-nextjs";
-export { SvgIconOpenableLogo } from "./svg-icon-openable-logo";
-export { SvgIconOpenableWordmark } from "./svg-icon-openable-wordmark";
 export { SvgIconPlay } from "./svg-icon-play";
 export { SvgIconPlus } from "./svg-icon-plus";
 export { SvgIconPower } from "./svg-icon-power";

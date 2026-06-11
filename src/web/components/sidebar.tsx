@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { SvgIconOpenableLogo } from "@/components/icon";
+import { Wordmark } from "@/components/wordmark";
 
 interface SidebarProps {
   readonly children: ReactNode;
@@ -10,7 +10,7 @@ const Sidebar = ({ children }: SidebarProps) => {
   return (
     <div className="flex h-full flex-col gap-12 overflow-hidden">
       <div className="px-6 pt-8">
-        <SvgIconOpenableLogo size="auto" className="w-16" />
+        <Wordmark variant="h3" />
       </div>
       {children}
     </div>

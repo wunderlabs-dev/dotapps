@@ -1,6 +1,6 @@
 import { BrandPanel } from "@/components/brand-panel";
-import { SvgIconOpenableLogo, SvgIconOpenableWordmark } from "@/components/icon";
 import { Typography } from "@/components/ui";
+import { Wordmark } from "@/components/wordmark";
 import type { StatusContentProps } from "./status-content";
 import { StatusContent } from "./status-content";
 
@@ -10,8 +10,7 @@ const LaunchingScreen = (props: StatusContentProps) => {
       <BrandPanel />
       <div className="flex w-1/3 flex-col justify-between p-12">
         <div className="flex flex-col gap-2">
-          <SvgIconOpenableLogo size="auto" className="w-16" />
-          <SvgIconOpenableWordmark size="auto" className="w-48" />
+          <Wordmark variant="h1" />
         </div>
 
         <div className="max-w-60 space-y-3">
@@ -19,7 +18,7 @@ const LaunchingScreen = (props: StatusContentProps) => {
             &copy; 2026 Wunderlabs. All rights reserved.
           </Typography>
           <Typography variant="caption" color="subtle">
-            For more details and legal notices, go to the About Openable.dev Screen.
+            For more details and legal notices, go to the About dotapps Screen.
           </Typography>
         </div>
 

@@ -1,6 +1,6 @@
 import { BrandPanel } from "@/components/brand-panel";
-import { SvgIconOpenableLogo, SvgIconOpenableWordmark } from "@/components/icon";
 import { Typography } from "@/components/ui";
+import { Wordmark } from "@/components/wordmark";
 import type { UseOAuthFlowReturn } from "@/hooks/use-oauth-flow";
 import type { UserError } from "@/lib/errors";
 import { AuthErrorBanner } from "./auth-error-banner";
@@ -23,8 +23,7 @@ const LoginScreen = ({ oauth, authError }: LoginScreenProps) => {
       <div className="flex flex-1 items-center justify-center p-12">
         <div className="w-full max-w-lg space-y-8">
           <div className="flex flex-col gap-3">
-            <SvgIconOpenableLogo size="auto" className="w-16" />
-            <SvgIconOpenableWordmark size="auto" className="w-48" />
+            <Wordmark variant="h1" />
           </div>
           <div className="space-y-2">
             <Typography variant="h1" color="default">
