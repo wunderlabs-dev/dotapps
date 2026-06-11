@@ -2,8 +2,8 @@ import { AwsClient } from "aws4fetch";
 
 interface Env {
   // R2 bucket binding for the app registry. `wrangler.toml` wires this to
-  // the `vibox-registry` bucket. Key layout:
-  //   apps/{slug}/{version}/app.vibox      - the published artifact
+  // the `dotapps-registry` bucket. Key layout:
+  //   apps/{slug}/{version}/app.apps       - the published artifact
   //   apps/{slug}/{version}/manifest.json  - that version's Manifest
   //   apps/{slug}/latest                   - JSON {"version":"1.0.0"} pointer
   REGISTRY: R2Bucket;
@@ -28,7 +28,7 @@ interface Manifest {
   description: string;
 }
 
-const R2_BUCKET_NAME = "vibox-registry";
+const R2_BUCKET_NAME = "dotapps-registry";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 const VERSION_PATTERN = /^[a-zA-Z0-9._-]+$/;
@@ -108,7 +108,7 @@ function validateManifest(manifest: Manifest, pathSlug: string): string | null {
 }
 
 function blobKey(slug: string, version: string): string {
-  return `apps/${slug}/${version}/app.vibox`;
+  return `apps/${slug}/${version}/app.apps`;
 }
 
 function manifestKey(slug: string, version: string): string {
