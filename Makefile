@@ -10,7 +10,7 @@ install: setup-dirs
 
 # Lockfile prevents concurrent dev sessions from fighting over VM/ports.
 # Checked before starting, removed on kill.
-LOCKFILE := $(HOME)/.opnble/dev.lock
+LOCKFILE := $(HOME)/.vibox/dev.lock
 
 define check-lock
 	@if [ -f $(LOCKFILE) ]; then \
@@ -52,8 +52,8 @@ kill-dev:
 	@-pkill -9 -f "node.*vite" 2>/dev/null || true
 	@-pkill -9 -f "pnpm dev" 2>/dev/null || true
 	@sleep 1
-	@-rm -f ~/.opnble/vm/alpine.img ~/.opnble/vm/vfkit-efi-store 2>/dev/null || true
-	@-rm -f ~/.opnble/vm/agent.sock ~/.opnble/vm/gvproxy-*.sock ~/.opnble/vm/vfkit-*.sock 2>/dev/null || true
+	@-rm -f ~/.vibox/vm/alpine.img ~/.vibox/vm/vfkit-efi-store 2>/dev/null || true
+	@-rm -f ~/.vibox/vm/agent.sock ~/.vibox/vm/gvproxy-*.sock ~/.vibox/vm/vfkit-*.sock 2>/dev/null || true
 	@-rm -f $(LOCKFILE) 2>/dev/null || true
 
 # Escalation for vfkit/gvproxy processes that survive kill-dev. Targets the
@@ -64,7 +64,7 @@ vm-doctor:
 
 # Reset project state to stopped (clears stale running status)
 reset-state:
-	@python3 -c "import json; f=open('$(HOME)/.opnble/state.json'); s=json.load(f); f.close(); [p.update({'status':'stopped','intent':'stop','port':None}) for p in s['projects']]; s['nextPort']=3001; f=open('$(HOME)/.opnble/state.json','w'); json.dump(s,f,indent=2); f.close(); print('State reset: all projects stopped')"
+	@python3 -c "import json; f=open('$(HOME)/.vibox/state.json'); s=json.load(f); f.close(); [p.update({'status':'stopped','intent':'stop','port':None}) for p in s['projects']]; s['nextPort']=3001; f=open('$(HOME)/.vibox/state.json','w'); json.dump(s,f,indent=2); f.close(); print('State reset: all projects stopped')"
 
 # Run Vite dev server independently (must be running before `make dev`)
 dev-frontend:
@@ -121,11 +121,11 @@ status:
 	@echo "=== App ==="
 	@ps aux | grep "target/debug/opnble" | grep -v grep | awk '{print "  PID:", $$2}' || echo "  NOT RUNNING"
 	@echo "=== Agent ==="
-	@test -S ~/.opnble/vm/agent.sock && echo "  UP" || echo "  DOWN"
+	@test -S ~/.vibox/vm/agent.sock && echo "  UP" || echo "  DOWN"
 	@echo "=== Vite ==="
 	@curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost:1420/ 2>/dev/null || echo "  DOWN"
 	@echo "=== Projects ==="
-	@python3 -c "import json; f=open('$(HOME)/.opnble/state.json'); s=json.load(f); [print(f'  {p[\"name\"]}: {p[\"status\"]} intent={p.get(\"intent\")} port={p.get(\"port\")}') for p in s['projects']]" 2>/dev/null || echo "  no state file"
+	@python3 -c "import json; f=open('$(HOME)/.vibox/state.json'); s=json.load(f); [print(f'  {p[\"name\"]}: {p[\"status\"]} intent={p.get(\"intent\")} port={p.get(\"port\")}') for p in s['projects']]" 2>/dev/null || echo "  no state file"
 
 
 # Stage helper binaries (cloudflared, plus vfkit + gvproxy once Phase 1 lands)
@@ -203,8 +203,8 @@ worker-deploy:
 
 # Create required directories
 setup-dirs:
-	mkdir -p ~/.opnble/repos
-	mkdir -p ~/.opnble/vm
+	mkdir -p ~/.vibox/repos
+	mkdir -p ~/.vibox/vm
 
 # macOS setup (installs vfkit for Apple Silicon VM support)
 setup-macos: setup-dirs
@@ -243,7 +243,7 @@ clean:
 
 # Clean everything including VM and repos (careful!)
 clean-all: clean
-	rm -rf ~/.opnble
+	rm -rf ~/.vibox
 
 # Format all code
 fmt: fmt-frontend
@@ -281,7 +281,7 @@ help:
 	@echo "  make wsl-image    - Build Alpine WSL distro image"
 	@echo ""
 	@echo "  make clean        - Clean build artifacts"
-	@echo "  make clean-all    - Clean everything (including ~/.opnble)"
+	@echo "  make clean-all    - Clean everything (including ~/.vibox)"
 	@echo ""
 	@echo "Quick Start:"
 	@echo "  make install && make vm-image && make dev"

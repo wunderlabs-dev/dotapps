@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "opnble",
+  "productName": "vibox",
   "version": "0.1.0",
-  "identifier": "com.opnble.app",
+  "identifier": "com.vibox.app",
   "build": {
     "beforeDevCommand": null,
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Opnble",
+        "title": "vibox",
         "width": 1440,
         "height": 1080,
         "visible": true,

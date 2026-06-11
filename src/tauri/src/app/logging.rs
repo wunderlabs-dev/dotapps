@@ -25,7 +25,7 @@ pub fn init() -> Result<WorkerGuard, AppError> {
 
     let env_filter = default_filter();
 
-    let file_appender = tracing_appender::rolling::daily(&logs_dir, "opnble.log");
+    let file_appender = tracing_appender::rolling::daily(&logs_dir, "vibox.log");
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
 
     registry()
