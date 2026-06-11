@@ -4,10 +4,11 @@ Deployed from `src/worker/` via `npx wrangler deploy` (account: wunderlabs).
 
 | Item | Value |
 | --- | --- |
-| Base URL | `<redeployed in C0 integration>` |
-| Publish token (`DOTAPPS_TOKEN`) | `<redeployed in C0 integration>` |
+| Base URL | `https://dotapps-registry.isopusoktoday.workers.dev` |
+| Publish token (`DOTAPPS_TOKEN`) | `6bb809422c071d06d93fc2cf07068ffe` |
 | R2 bucket | `dotapps-registry` |
 | Blob transport | Fallback (`/v1/blob/*` via Worker) — presign secrets not set |
+| Custom domain | `registry.dotapps.club` (bound; resolves once `dotapps.club` NS propagates) |
 
 The token is a throwaway demo credential, recorded here intentionally so
 Phase C integration and the CLI can pick it up without a secret store.
@@ -27,7 +28,7 @@ upload/download response shapes are identical in both modes.
 ## Quick usage
 
 ```bash
-export DOTAPPS_REGISTRY=<redeployed in C0 integration>
-export DOTAPPS_TOKEN=<redeployed in C0 integration>
+export DOTAPPS_REGISTRY=https://dotapps-registry.isopusoktoday.workers.dev
+export DOTAPPS_TOKEN=6bb809422c071d06d93fc2cf07068ffe
 curl -s $DOTAPPS_REGISTRY/v1/apps
 ```
