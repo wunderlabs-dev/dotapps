@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/tauri", "src/agent"]
+members = ["src/tauri", "src/agent", "src/cli"]
 
 # ──────────────────────────────────────────────────────────────────────
 # Quality Gate: Shared Lint Configuration
