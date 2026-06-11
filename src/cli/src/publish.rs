@@ -27,6 +27,7 @@ struct CompleteResponse {
 /// registry to `$VIBOX_REGISTRY`; the publish token comes from `$VIBOX_TOKEN`.
 pub fn run(file: Option<&Path>, registry: Option<&str>) -> Result<()> {
     let registry = resolve_registry(registry)?;
+    let registry_url = ensure_safe_registry(&registry)?;
     let token = std::env::var("VIBOX_TOKEN")
         .context("VIBOX_TOKEN is not set — export the registry publish token")?;
     let file = match file {
@@ -34,6 +35,7 @@ pub fn run(file: Option<&Path>, registry: Option<&str>) -> Result<()> {
         None => newest_vibox(Path::new("."))?,
     };
     let manifest = archive::read_manifest(&file)?;
+    manifest.validate()?;
 
     // No client timeout: uploading a multi-hundred-MB image can take a while.
     let client = Client::builder()
@@ -57,13 +59,13 @@ pub fn run(file: Option<&Path>, registry: Option<&str>) -> Result<()> {
         .len();
     execute(
         &client,
-        build_upload_request(&client, &start.upload_url, &token, blob, len)?,
+        build_upload_request(&client, &registry_url, &start.upload_url, &token, blob, len)?,
         "upload",
     )?;
 
     let response = execute(
         &client,
-        build_complete_request(&client, &start.complete_url, &token)?,
+        build_complete_request(&client, &registry_url, &start.complete_url, &token)?,
         "complete upload",
     )?;
     let complete: CompleteResponse = response
@@ -117,6 +119,37 @@ fn versions_url(registry: &str, slug: &str) -> String {
     format!("{}/v1/apps/{slug}/versions", registry.trim_end_matches('/'))
 }
 
+/// Rejects registry URLs that would expose the publish token: only `https`,
+/// or plain `http` to loopback (the local `wrangler dev` fallback).
+fn ensure_safe_registry(registry: &str) -> Result<reqwest::Url> {
+    let url: reqwest::Url = registry
+        .parse()
+        .with_context(|| format!("invalid registry URL {registry:?}"))?;
+    match url.scheme() {
+        "https" => Ok(url),
+        "http" if is_loopback(&url) => Ok(url),
+        "http" => bail!(
+            "refusing to send the publish token over plain http to {registry} — use https (http is allowed only for localhost)"
+        ),
+        other => bail!("unsupported registry URL scheme {other:?}"),
+    }
+}
+
+fn is_loopback(url: &reqwest::Url) -> bool {
+    match url.host() {
+        Some(url::Host::Domain(domain)) => domain == "localhost",
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+/// The publish token is attached only to requests that target the registry's
+/// own origin; presigned blob URLs on other hosts must never see it.
+fn same_origin(a: &reqwest::Url, b: &reqwest::Url) -> bool {
+    a.scheme() == b.scheme() && a.host() == b.host() && a.port_or_known_default() == b.port_or_known_default()
+}
+
 fn build_start_request(
     client: &Client,
     registry: &str,
@@ -131,30 +164,44 @@ fn build_start_request(
         .context("failed to build start-upload request")
 }
 
-/// Bearer is sent even to presigned URLs: harmless there, required on the
-/// registry's fallback `/v1/blob/...` upload route.
+/// Bearer is required on the registry's fallback `/v1/blob/...` upload route
+/// (same origin); presigned URLs on other origins authenticate via their own
+/// signature and must not receive the token.
 fn build_upload_request(
     client: &Client,
+    registry: &reqwest::Url,
     upload_url: &str,
     token: &str,
     blob: File,
     len: u64,
 ) -> Result<Request> {
-    client
-        .put(upload_url)
-        .bearer_auth(token)
+    let url: reqwest::Url = upload_url
+        .parse()
+        .with_context(|| format!("registry returned an invalid upload URL {upload_url:?}"))?;
+    let mut request = client
+        .put(url.clone())
         .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
-        .body(Body::sized(blob, len))
-        .build()
-        .context("failed to build upload request")
+        .body(Body::sized(blob, len));
+    if same_origin(registry, &url) {
+        request = request.bearer_auth(token);
+    }
+    request.build().context("failed to build upload request")
 }
 
-fn build_complete_request(client: &Client, complete_url: &str, token: &str) -> Result<Request> {
-    client
-        .post(complete_url)
-        .bearer_auth(token)
-        .build()
-        .context("failed to build complete request")
+fn build_complete_request(
+    client: &Client,
+    registry: &reqwest::Url,
+    complete_url: &str,
+    token: &str,
+) -> Result<Request> {
+    let url: reqwest::Url = complete_url
+        .parse()
+        .with_context(|| format!("registry returned an invalid complete URL {complete_url:?}"))?;
+    let mut request = client.post(url.clone());
+    if same_origin(registry, &url) {
+        request = request.bearer_auth(token);
+    }
+    request.build().context("failed to build complete request")
 }
 
 /// Executes a request and turns any non-2xx response into a human-readable
@@ -237,42 +284,96 @@ mod tests {
         assert_eq!(sent, frozen_manifest());
     }
 
-    #[test]
-    fn upload_request_puts_octet_stream_with_bearer() {
+    fn registry_url() -> reqwest::Url {
+        "https://reg.example".parse().expect("registry URL parses")
+    }
+
+    fn open_blob() -> File {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("app.vibox");
         std::fs::write(&path, b"bytes").expect("write archive");
-        let blob = File::open(&path).expect("open archive");
+        File::open(&path).expect("open archive")
+    }
 
+    #[test]
+    fn upload_to_registry_origin_carries_bearer() {
         let client = reqwest::blocking::Client::new();
         let request = build_upload_request(
             &client,
-            "https://blob.example/upload?sig=abc",
+            &registry_url(),
+            "https://reg.example/v1/blob/apps/x/1.0.0/app.vibox",
             "tok-123",
-            blob,
+            open_blob(),
             5,
         )
         .expect("build upload request");
         assert_eq!(request.method(), reqwest::Method::PUT);
-        assert_eq!(
-            request.url().as_str(),
-            "https://blob.example/upload?sig=abc"
-        );
         assert_eq!(header(&request, "authorization"), "Bearer tok-123");
         assert_eq!(header(&request, "content-type"), "application/octet-stream");
     }
 
     #[test]
-    fn complete_request_posts_with_bearer() {
+    fn upload_to_foreign_origin_never_carries_bearer() {
+        let client = reqwest::blocking::Client::new();
+        let request = build_upload_request(
+            &client,
+            &registry_url(),
+            "https://blob.example/upload?sig=abc",
+            "tok-123",
+            open_blob(),
+            5,
+        )
+        .expect("build upload request");
+        assert!(
+            request.headers().get("authorization").is_none(),
+            "publish token must not leak to a foreign origin"
+        );
+        assert_eq!(header(&request, "content-type"), "application/octet-stream");
+    }
+
+    #[test]
+    fn complete_on_registry_origin_carries_bearer() {
         let client = reqwest::blocking::Client::new();
         let request = build_complete_request(
             &client,
+            &registry_url(),
             "https://reg.example/v1/apps/x/versions/1.0.0/complete",
             "tok-123",
         )
         .expect("build complete request");
         assert_eq!(request.method(), reqwest::Method::POST);
         assert_eq!(header(&request, "authorization"), "Bearer tok-123");
+    }
+
+    #[test]
+    fn complete_on_foreign_origin_never_carries_bearer() {
+        let client = reqwest::blocking::Client::new();
+        let request = build_complete_request(
+            &client,
+            &registry_url(),
+            "https://evil.example/v1/apps/x/versions/1.0.0/complete",
+            "tok-123",
+        )
+        .expect("build complete request");
+        assert!(
+            request.headers().get("authorization").is_none(),
+            "publish token must not leak to a foreign origin"
+        );
+    }
+
+    #[test]
+    fn registry_must_be_https_unless_loopback() {
+        super::ensure_safe_registry("https://reg.example").expect("https accepted");
+        super::ensure_safe_registry("http://localhost:8787").expect("http localhost accepted");
+        super::ensure_safe_registry("http://127.0.0.1:8787").expect("http 127.0.0.1 accepted");
+        assert!(
+            super::ensure_safe_registry("http://reg.example").is_err(),
+            "plain http to a remote host must be rejected"
+        );
+        assert!(
+            super::ensure_safe_registry("ftp://reg.example").is_err(),
+            "non-http schemes must be rejected"
+        );
     }
 
     #[test]

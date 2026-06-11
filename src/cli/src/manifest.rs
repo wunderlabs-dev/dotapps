@@ -21,6 +21,45 @@ impl Manifest {
     pub fn image_tag(&self) -> String {
         format!("vibox/{}:{}", self.slug, self.version)
     }
+
+    /// Validates identifier fields before they reach URLs, file names, image
+    /// tags, or container names.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        validate_slug(&self.slug)?;
+        validate_version(&self.version)?;
+        if self.internal_port == 0 {
+            anyhow::bail!("manifest internalPort must be non-zero");
+        }
+        Ok(())
+    }
+}
+
+fn validate_slug(slug: &str) -> anyhow::Result<()> {
+    let starts_ok = slug
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
+    let chars_ok = slug
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !(starts_ok && chars_ok && slug.len() <= 63) {
+        anyhow::bail!(
+            "manifest slug {slug:?} is invalid: 1-63 chars of [a-z0-9-], starting with a letter or digit"
+        );
+    }
+    Ok(())
+}
+
+fn validate_version(version: &str) -> anyhow::Result<()> {
+    let ok = !version.is_empty()
+        && version.len() <= 64
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    if !ok {
+        anyhow::bail!("manifest version {version:?} is invalid: 1-64 chars of [A-Za-z0-9._-]");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -78,5 +117,42 @@ mod tests {
     fn image_tag_follows_frozen_contract() {
         let manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
         assert_eq!(manifest.image_tag(), "vibox/cafe-tracker:1.0.0");
+    }
+
+    #[test]
+    fn validate_accepts_frozen_manifest() {
+        let manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
+        manifest.validate().expect("frozen manifest is valid");
+    }
+
+    #[test]
+    fn validate_rejects_path_breaking_slugs() {
+        let mut manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
+        for bad in ["../escape", "a/b", "UPPER", "", "-leading", "pct%41", "a b"] {
+            manifest.slug = bad.to_owned();
+            assert!(
+                manifest.validate().is_err(),
+                "slug {bad:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_path_breaking_versions() {
+        let mut manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
+        for bad in ["1/0", "../1", "", "1.0 beta", "v%31"] {
+            manifest.version = bad.to_owned();
+            assert!(
+                manifest.validate().is_err(),
+                "version {bad:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_port_zero() {
+        let mut manifest: Manifest = serde_json::from_str(FROZEN_JSON).expect("frozen JSON parses");
+        manifest.internal_port = 0;
+        assert!(manifest.validate().is_err(), "port 0 must be rejected");
     }
 }

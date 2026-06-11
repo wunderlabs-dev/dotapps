@@ -15,14 +15,12 @@ pub fn run(dir: &Path, out: Option<&Path>) -> Result<()> {
 
     build_image(dir, &tag)?;
 
-    let tmp_dir = std::env::temp_dir().join(format!("vibox-pack-{}", std::process::id()));
-    std::fs::create_dir_all(&tmp_dir)
-        .with_context(|| format!("failed to create {}", tmp_dir.display()))?;
-    let image_tar = tmp_dir.join(archive::IMAGE_ENTRY);
-    let packed = save_image(&tag, &image_tar)
-        .and_then(|()| archive::create_vibox(&manifest, &image_tar, &out));
-    let _ = std::fs::remove_dir_all(&tmp_dir);
-    packed?;
+    // Random, exclusively-created temp dir (removed on drop, even on error);
+    // a predictable path would be open to symlink/TOCTOU games.
+    let tmp_dir = tempfile::tempdir().context("failed to create temp directory")?;
+    let image_tar = tmp_dir.path().join(archive::IMAGE_ENTRY);
+    save_image(&tag, &image_tar)?;
+    archive::create_vibox(&manifest, &image_tar, &out)?;
 
     let size = std::fs::metadata(&out)
         .with_context(|| format!("failed to stat {}", out.display()))?
@@ -43,12 +41,14 @@ fn read_project_manifest(dir: &Path) -> Result<Manifest> {
             path.display()
         )
     })?;
-    serde_json::from_slice(&bytes).with_context(|| {
+    let manifest: Manifest = serde_json::from_slice(&bytes).with_context(|| {
         format!(
             "{} is not a valid manifest (name, slug, version, icon, internalPort are required)",
             path.display()
         )
-    })
+    })?;
+    manifest.validate()?;
+    Ok(manifest)
 }
 
 fn default_out_path(manifest: &Manifest) -> PathBuf {
