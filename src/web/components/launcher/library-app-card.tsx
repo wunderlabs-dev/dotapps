@@ -1,5 +1,6 @@
 import { Badge, Button } from "@/components/ui";
 import type { InstalledApp } from "@/lib/dotapps";
+import { isNewerVersion } from "@/lib/version";
 import { AppTile } from "./app-tile";
 
 interface LibraryAppCardProps {
@@ -19,7 +20,8 @@ const LibraryAppCard = ({
   onOpen,
   onUpdate,
 }: LibraryAppCardProps) => {
-  const updateVersion = storeVersion !== app.manifest.version ? storeVersion : undefined;
+  const updateVersion =
+    storeVersion && isNewerVersion(storeVersion, app.manifest.version) ? storeVersion : undefined;
   const busy = opening || updating;
 
   return (
