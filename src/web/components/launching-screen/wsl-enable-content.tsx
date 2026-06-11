@@ -11,7 +11,7 @@ const WSLEnableContent = ({
     <div className="space-y-4 text-center">
       <Typography variant="h3">Enable WSL2</Typography>
       <Typography variant="body" color="muted">
-        Opnble needs Windows Subsystem for Linux to run containers.
+        dotapps needs Windows Subsystem for Linux to run containers.
       </Typography>
       <Button variant="default" onClick={onEnable} disabled={enabling}>
         {enabling ? "Enabling..." : "Enable WSL2"}

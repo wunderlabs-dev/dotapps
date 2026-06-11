@@ -5,7 +5,7 @@ const VirtualizationContent = () => {
     <div className="space-y-4 text-center">
       <Typography variant="h3">Virtualization Disabled</Typography>
       <Typography variant="body" color="muted">
-        Enable CPU virtualization (VT-x / AMD-V) in your BIOS settings, then relaunch Opnble.
+        Enable CPU virtualization (VT-x / AMD-V) in your BIOS settings, then relaunch dotapps.
       </Typography>
     </div>
   );

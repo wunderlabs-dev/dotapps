@@ -3,7 +3,7 @@ import { Button, Spinner, Typography } from "@/components/ui";
 import { KeyValueRow } from "./key-value-row";
 import { SettingsSectionBody } from "./settings-section";
 
-const APP_IDENTIFIER = "com.opnble.app";
+const APP_IDENTIFIER = "com.dotapps.app";
 
 interface AboutBodyProps {
   readonly version: string;

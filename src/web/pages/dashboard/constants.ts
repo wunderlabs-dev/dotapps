@@ -3,7 +3,7 @@ import type { ProjectIntent, ProjectStatus } from "@/types";
 const READY_STATUSES = new Set<ProjectStatus>(["ready"]);
 
 // IPv4 literal, never `localhost`: macOS dual-stack `localhost` resolution
-// prefers `::1`, but Opnble's vsock port forwarder binds `127.0.0.1` only.
+// prefers `::1`, but dotapps's vsock port forwarder binds `127.0.0.1` only.
 // A host process on the IPv6 wildcard would otherwise intercept the iframe
 // preview and "Open in browser" navigation.
 const LOCAL_URL_BASE = "http://127.0.0.1";

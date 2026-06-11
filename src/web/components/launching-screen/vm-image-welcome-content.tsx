@@ -20,7 +20,7 @@ const VmImageWelcomeContent = ({ compressedSizeBytes, onConfirm }: VmImageWelcom
       One-time setup
     </Typography>
     <Typography variant="body" color="muted">
-      Opnble runs your projects in a small Linux virtual machine. We'll download about{" "}
+      dotapps runs your projects in a small Linux virtual machine. We'll download about{" "}
       {formatGb(compressedSizeBytes)} GB now so projects start instantly later. You can leave this
       running in the background.
     </Typography>

@@ -3,7 +3,7 @@ import { type ComponentPropsWithoutRef, type ElementType, forwardRef } from "rea
 import { cn } from "@/lib/cn";
 
 /**
- * Typography variants using CVA for the Opnble terminal-aesthetic design system.
+ * Typography variants using CVA for the dotapps terminal-aesthetic design system.
  * Uses JetBrains Mono font and CSS variables for colors.
  */
 const typographyVariants = cva("font-sans antialiased", {

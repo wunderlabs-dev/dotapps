@@ -16,7 +16,7 @@ const AppErrorFallback = ({ error, onReset }: AppErrorFallbackProps) => (
         Something went wrong
       </Typography>
       <Typography variant="body" color="muted">
-        Opnble hit an unexpected error and could not continue rendering. The details below are also
+        dotapps hit an unexpected error and could not continue rendering. The details below are also
         captured in the host log file. You can attach a diagnostics zip from Settings -&gt;
         Diagnostics after reloading.
       </Typography>

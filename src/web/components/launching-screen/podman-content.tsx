@@ -5,7 +5,7 @@ const PodmanContent = () => {
     <div className="space-y-4 text-center">
       <Typography variant="h3">Podman Required</Typography>
       <Typography variant="body" color="muted">
-        Install Podman to use Opnble on Linux. Visit podman.io for instructions.
+        Install Podman to use dotapps on Linux. Visit podman.io for instructions.
       </Typography>
     </div>
   );

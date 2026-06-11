@@ -7,7 +7,7 @@ interface EmptyStateProps {
   readonly onImport: () => void;
 }
 
-const HELP_URL = "https://openable.dev/docs";
+const HELP_URL = "https://dotapps.club";
 
 const EmptyState = ({ onImport }: EmptyStateProps) => {
   return (

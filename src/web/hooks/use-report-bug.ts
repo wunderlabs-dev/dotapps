@@ -17,7 +17,7 @@ const buildBody = (version: string, platform: string) =>
     "Attach the zip from Settings -> Diagnostics -> Export.",
     "",
     "## Environment",
-    `- Opnble: ${version}`,
+    `- dotapps: ${version}`,
     `- Platform: ${platform}`,
   ].join("\n");
 

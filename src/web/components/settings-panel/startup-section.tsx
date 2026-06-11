@@ -15,13 +15,13 @@ const StartupSection = ({
       <SettingsSectionBody divided>
         <ToggleRow
           label="Auto-start VM"
-          description="Start the VM automatically when Opnble launches"
+          description="Start the VM automatically when dotapps launches"
           checked={autoStartVm}
           onChange={() => onToggle("autoStartVm")}
         />
         <ToggleRow
           label="Start on login"
-          description="Launch Opnble when you log in to your computer"
+          description="Launch dotapps when you log in to your computer"
           checked={startOnLogin}
           onChange={() => onToggle("startOnLogin")}
         />
