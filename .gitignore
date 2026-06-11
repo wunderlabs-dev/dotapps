@@ -54,3 +54,7 @@ build/
 
 # Python bytecode (demo apps)
 __pycache__/
+
+# Packed app artifacts (build output)
+*.apps
+*.vibox
