@@ -160,8 +160,41 @@ pub async fn run_app_inner(
     let handle = crate::vm::port_forward::start_forwarding(&vsock_path, port, port);
     forwards.0.lock().await.insert(slug.to_string(), handle);
 
+    // Wait for the app to actually serve before returning, so callers that
+    // open a window (deep link, Library "Open") don't load a blank page while
+    // the container's server is still starting. Best-effort: proceed anyway
+    // after the timeout so a slow-booting app still appears.
+    wait_http_ready(port).await;
+
     store.set_running(slug, true)?;
     Ok(port)
+}
+
+/// Poll `http://127.0.0.1:{port}` until it returns any HTTP response or the
+/// timeout elapses. A bare TCP connect is not enough: the host port-forward
+/// listener accepts immediately and only fails upstream once the container is
+/// missing, so readiness must be confirmed with a real request.
+async fn wait_http_ready(port: u16) {
+    const ATTEMPTS: u32 = 30;
+    let url = format!("http://127.0.0.1:{port}/");
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+    {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::warn!("cannot build readiness client for port {port}: {e}");
+            return;
+        }
+    };
+    for attempt in 0..ATTEMPTS {
+        if client.get(&url).send().await.is_ok() {
+            tracing::info!("app on port {port} is serving (after {attempt} probes)");
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    tracing::warn!("app on port {port} not serving after readiness wait; opening anyway");
 }
 
 /// Stop a running app's container and tear down its port forward.
