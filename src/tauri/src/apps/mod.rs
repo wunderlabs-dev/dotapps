@@ -5,5 +5,6 @@
 //! `~/.vibox/repos/{slug}/`, and run as podman containers inside the VM via
 //! the agent's `ExecHost` RPC. Installed state lives at `~/.vibox/apps.json`.
 
+pub mod registry;
 pub mod store;
 pub mod types;
