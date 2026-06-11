@@ -1,264 +1,122 @@
+import { AwsClient } from "aws4fetch";
+
 interface Env {
-  CF_API_TOKEN: string;
-  CF_ACCOUNT_ID: string;
-  CF_ZONE_ID: string;
-  TUNNEL_DOMAIN: string;
-  // R2 bucket binding for VM images. `wrangler.toml` wires this to the
-  // `opnble-vm` bucket. Until the bucket exists the /vm/* routes return 500.
-  VM_IMAGES: R2Bucket;
-  // R2 bucket binding for app release artifacts (DMG, sig, latest.json).
-  // `wrangler.toml` wires this to the `opnble-releases` bucket. The release
-  // CI uploads to `releases/<tag>/<file>` and refreshes the channel pointers
-  // at `releases/stable/latest.json` and `releases/beta/latest.json`.
-  RELEASES: R2Bucket;
+  // R2 bucket binding for the app registry. `wrangler.toml` wires this to
+  // the `vibox-registry` bucket. Key layout:
+  //   apps/{slug}/{version}/app.vibox      - the published artifact
+  //   apps/{slug}/{version}/manifest.json  - that version's Manifest
+  //   apps/{slug}/latest                   - JSON {"version":"1.0.0"} pointer
+  REGISTRY: R2Bucket;
+  // Shared secret authenticating publish endpoints (and fallback blob PUT).
+  PUBLISH_TOKEN: string;
+  // Optional S3-compatible credentials for the bucket. When all three are
+  // present the Worker hands out presigned R2 URLs so blob bytes bypass the
+  // Worker entirely; otherwise upload/download fall back to /v1/blob/*.
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  ACCOUNT_ID?: string;
 }
 
-interface CreateTunnelRequest {
-  projectName: string;
-  projectId: string;
-  hostPort: number;
+// App manifest, camelCase on the wire. This shape is a frozen contract
+// shared with the CLI (publish body) and the launcher (store/install).
+interface Manifest {
+  name: string;
+  slug: string;
+  version: string;
+  icon: string;
+  internalPort: number;
+  description: string;
 }
 
-interface CreateTunnelResponse {
-  tunnelId: string;
-  tunnelToken: string;
-  url: string;
-}
+const R2_BUCKET_NAME = "vibox-registry";
 
-interface CfTunnelResult {
-  id: string;
-  token: string;
-}
-
-interface CfDnsRecord {
-  id: string;
-}
-
-interface CfApiResponse<T> {
-  result: T;
-  success: boolean;
-}
-
-const CF_API = "https://api.cloudflare.com/client/v4";
-
-const MAX_SUBDOMAIN_LENGTH = 30;
-const SHORT_ID_BYTES = 4;
-const TUNNEL_SECRET_BYTES = 32;
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+const VERSION_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const MAX_VERSION_LENGTH = 128;
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
+const PRESIGN_EXPIRY_SECONDS = 3600;
+const APPS_LIST_CACHE_SECONDS = 30;
+const BLOB_CACHE_SECONDS = 31536000;
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-function sanitizeSubdomain(name: string): string {
-  const sanitized = name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, MAX_SUBDOMAIN_LENGTH);
-  return sanitized || "project";
-}
-
-function shortId(): string {
-  const bytes = new Uint8Array(SHORT_ID_BYTES);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function jsonResponse(data: unknown, status: number = 200): Response {
+function jsonResponse(
+  data: unknown,
+  status: number = 200,
+  extraHeaders: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extraHeaders },
   });
 }
 
-interface GitHubUser {
-  login: string;
-  id: number;
-}
-
-async function checkAuth(request: Request): Promise<Response | null> {
-  const auth = request.headers.get("Authorization");
-  if (!auth || !auth.startsWith("Bearer ")) {
+// Publish endpoints (and the fallback blob PUT) require the shared token.
+// Returns an error Response to short-circuit with, or null when authorized.
+function checkAuth(request: Request, env: Env): Response | null {
+  if (!env.PUBLISH_TOKEN) {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
-
-  const token = auth.slice("Bearer ".length);
-
-  // Validate the token against GitHub's API
-  const ghResponse = await fetch("https://api.github.com/user", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "opnble-tunnel-worker",
-      Accept: "application/vnd.github+json",
-    },
-  });
-
-  if (!ghResponse.ok) {
-    return jsonResponse({ error: "invalid GitHub token" }, 401);
+  const auth = request.headers.get("Authorization");
+  if (auth !== `Bearer ${env.PUBLISH_TOKEN}`) {
+    return jsonResponse({ error: "unauthorized" }, 401);
   }
-
-  // Token is valid, user is authenticated
   return null;
 }
 
-async function cfFetch(env: Env, path: string, method: string, body?: unknown): Promise<Response> {
-  const options: RequestInit = {
-    method,
-    headers: {
-      Authorization: `Bearer ${env.CF_API_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  };
-  if (body !== undefined) {
-    options.body = JSON.stringify(body);
-  }
-  return fetch(`${CF_API}${path}`, options);
+function isValidVersion(version: string): boolean {
+  if (version.length === 0 || version.length > MAX_VERSION_LENGTH) return false;
+  if (version.includes("..")) return false;
+  return VERSION_PATTERN.test(version);
 }
 
-async function configureTunnelIngress(
-  env: Env,
-  tunnelId: string,
-  hostname: string,
-  hostPort: number,
-): Promise<void> {
-  const configRes = await cfFetch(
-    env,
-    `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`,
-    "PUT",
-    {
-      config: {
-        ingress: [
-          {
-            hostname,
-            service: `http://127.0.0.1:${hostPort}`,
-            originRequest: {
-              httpHostHeader: `localhost:${hostPort}`,
-            },
-          },
-          { service: "http_status:404" },
-        ],
-      },
-    },
-  );
-  if (!configRes.ok) {
-    const text = await configRes.text();
-    console.error("tunnel ingress configuration failed:", text);
-    throw new Error("Tunnel ingress configuration failed");
+// Validates a publish body against the frozen Manifest contract. Returns a
+// human-readable error string, or null when the manifest is acceptable.
+function validateManifest(manifest: Manifest, pathSlug: string): string | null {
+  if (typeof manifest.name !== "string" || manifest.name.length === 0) {
+    return "name is required";
   }
-  const configData: CfApiResponse<unknown> = await configRes.json();
-  if (!configData.success) {
-    throw new Error("Tunnel ingress configuration returned unsuccessful response");
+  if (typeof manifest.slug !== "string" || !SLUG_PATTERN.test(manifest.slug)) {
+    return "slug must match ^[a-z0-9-]+$";
   }
+  if (manifest.slug !== pathSlug) {
+    return "manifest slug must match the slug in the URL path";
+  }
+  if (typeof manifest.version !== "string" || !isValidVersion(manifest.version)) {
+    return "version must be a non-empty string of [a-zA-Z0-9._-]";
+  }
+  if (
+    typeof manifest.internalPort !== "number" ||
+    !Number.isInteger(manifest.internalPort) ||
+    manifest.internalPort < MIN_PORT ||
+    manifest.internalPort > MAX_PORT
+  ) {
+    return `internalPort must be an integer between ${MIN_PORT} and ${MAX_PORT}`;
+  }
+  if (manifest.icon !== undefined && typeof manifest.icon !== "string") {
+    return "icon must be a string";
+  }
+  if (manifest.description !== undefined && typeof manifest.description !== "string") {
+    return "description must be a string";
+  }
+  return null;
 }
 
-async function createTunnel(env: Env, req: CreateTunnelRequest): Promise<CreateTunnelResponse> {
-  const subdomain = `${sanitizeSubdomain(req.projectName)}-${shortId()}`;
-  const hostname = `${subdomain}.${env.TUNNEL_DOMAIN}`;
-  const tunnelName = `opnble-${req.projectId}-${subdomain}`;
-
-  const secretBytes = new Uint8Array(TUNNEL_SECRET_BYTES);
-  crypto.getRandomValues(secretBytes);
-  const tunnelSecret = btoa(String.fromCharCode(...secretBytes));
-
-  // Step 1: Create the tunnel
-  const createRes = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel`, "POST", {
-    name: tunnelName,
-    tunnel_secret: tunnelSecret,
-  });
-  if (!createRes.ok) {
-    const text = await createRes.text();
-    console.error("tunnel creation failed:", text);
-    throw new Error("Tunnel creation failed");
-  }
-  const tunnelData: CfApiResponse<CfTunnelResult> = await createRes.json();
-  if (!tunnelData.success || !tunnelData.result) {
-    throw new Error("Tunnel creation returned unsuccessful response");
-  }
-  const tunnelId = tunnelData.result.id;
-  const tunnelToken = tunnelData.result.token;
-
-  // Remotely managed tunnels ignore cloudflared's --url flag. Route traffic
-  // through API-configured ingress instead (localhost:0 caused 502; missing
-  // ingress causes 522 connection timed out).
-  await configureTunnelIngress(env, tunnelId, hostname, req.hostPort);
-
-  // Step 2: Create DNS CNAME record
-  const dnsRes = await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records`, "POST", {
-    type: "CNAME",
-    name: subdomain,
-    content: `${tunnelId}.cfargotunnel.com`,
-    proxied: true,
-    comment: `opnble tunnel for ${req.projectId}`,
-  });
-  if (!dnsRes.ok) {
-    // Cleanup: delete the tunnel
-    await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`, "DELETE");
-    const text = await dnsRes.text();
-    console.error("DNS record creation failed:", text);
-    throw new Error("DNS record creation failed");
-  }
-  const dnsData: CfApiResponse<CfDnsRecord> = await dnsRes.json();
-  if (!dnsData.success) {
-    await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`, "DELETE");
-    throw new Error("DNS record creation returned unsuccessful response");
-  }
-
-  return {
-    tunnelId,
-    tunnelToken,
-    url: `https://${hostname}`,
-  };
+function blobKey(slug: string, version: string): string {
+  return `apps/${slug}/${version}/app.vibox`;
 }
 
-async function deleteTunnel(env: Env, tunnelId: string): Promise<void> {
-  // Step 1: Find and delete DNS records pointing to this tunnel
-  const dnsListRes = await cfFetch(
-    env,
-    `/zones/${env.CF_ZONE_ID}/dns_records?type=CNAME&content=${tunnelId}.cfargotunnel.com`,
-    "GET",
-  );
-  if (dnsListRes.ok) {
-    const dnsData: CfApiResponse<CfDnsRecord[]> = await dnsListRes.json();
-    if (dnsData.success && dnsData.result) {
-      for (const record of dnsData.result) {
-        const delRes = await cfFetch(
-          env,
-          `/zones/${env.CF_ZONE_ID}/dns_records/${record.id}`,
-          "DELETE",
-        );
-        if (!delRes.ok) {
-          console.error(`DNS record ${record.id} deletion failed: ${String(delRes.status)}`);
-        }
-      }
-    }
-  } else {
-    console.error(`DNS record list fetch failed: ${String(dnsListRes.status)}`);
-  }
+function manifestKey(slug: string, version: string): string {
+  return `apps/${slug}/${version}/manifest.json`;
+}
 
-  // Step 2: Clean up active connections
-  await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/connections`, "DELETE");
-
-  // Step 3: Delete the tunnel
-  const deleteRes = await cfFetch(
-    env,
-    `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`,
-    "DELETE",
-  );
-  if (!deleteRes.ok) {
-    const text = await deleteRes.text();
-    console.error("tunnel deletion failed:", text);
-    throw new Error("Tunnel deletion failed");
-  }
-  const deleteData: CfApiResponse<unknown> = await deleteRes.json();
-  if (!deleteData.success) {
-    console.error("tunnel deletion returned unsuccessful response");
-    throw new Error("Tunnel deletion returned unsuccessful response");
-  }
+function latestKey(slug: string): string {
+  return `apps/${slug}/latest`;
 }
 
 // Path-traversal guard for R2 keys derived from URL segments. Cloudflare R2
@@ -271,6 +129,159 @@ function isSafeR2Key(key: string): boolean {
   if (key.includes("..")) return false;
   if (key.includes("//")) return false;
   return /^[a-zA-Z0-9._\-/]+$/.test(key);
+}
+
+// S3-compatible client for presigning R2 URLs, or null when the optional
+// credentials are not configured (the fallback /v1/blob/* routes apply then).
+function presignClient(env: Env): AwsClient | null {
+  if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.ACCOUNT_ID) {
+    return null;
+  }
+  return new AwsClient({
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    service: "s3",
+    region: "auto",
+  });
+}
+
+async function presignBlobUrl(
+  env: Env,
+  aws: AwsClient,
+  key: string,
+  method: "GET" | "PUT",
+): Promise<string> {
+  const url = new URL(
+    `https://${env.ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${key}`,
+  );
+  url.searchParams.set("X-Amz-Expires", String(PRESIGN_EXPIRY_SECONDS));
+  const signed = await aws.sign(new Request(url, { method }), {
+    aws: { signQuery: true },
+  });
+  return signed.url;
+}
+
+async function readJson<T>(bucket: R2Bucket, key: string): Promise<T | null> {
+  let obj: R2ObjectBody | null;
+  try {
+    obj = await bucket.get(key);
+  } catch (err) {
+    console.error("R2 get failed for", key, err);
+    return null;
+  }
+  if (obj === null) return null;
+  try {
+    return await obj.json<T>();
+  } catch {
+    console.error("R2 object is not valid JSON:", key);
+    return null;
+  }
+}
+
+// POST /v1/apps/{slug}/versions - start a publish. Stores the manifest
+// immediately and hands back where to PUT the blob and where to POST when
+// the upload finishes. The response shape is identical in presigned and
+// fallback modes; clients never know which transport they got.
+async function handleCreateVersion(
+  request: Request,
+  env: Env,
+  origin: string,
+  slug: string,
+): Promise<Response> {
+  let manifest: Manifest;
+  try {
+    manifest = await request.json();
+  } catch {
+    return jsonResponse({ error: "invalid JSON body" }, 400);
+  }
+
+  const validationError = validateManifest(manifest, slug);
+  if (validationError !== null) {
+    return jsonResponse({ error: validationError }, 400);
+  }
+
+  const version = manifest.version;
+  await env.REGISTRY.put(manifestKey(slug, version), JSON.stringify(manifest), {
+    httpMetadata: { contentType: "application/json" },
+  });
+
+  const aws = presignClient(env);
+  const uploadUrl = aws
+    ? await presignBlobUrl(env, aws, blobKey(slug, version), "PUT")
+    : `${origin}/v1/blob/${blobKey(slug, version)}`;
+  const completeUrl = `${origin}/v1/apps/${slug}/versions/${version}/complete`;
+
+  return jsonResponse({ uploadUrl, completeUrl });
+}
+
+// POST /v1/apps/{slug}/versions/{version}/complete - finish a publish.
+// Verifies the blob actually landed, then flips the `latest` pointer.
+async function handleCompleteVersion(
+  env: Env,
+  slug: string,
+  version: string,
+): Promise<Response> {
+  const blob = await env.REGISTRY.head(blobKey(slug, version));
+  if (blob === null) {
+    return jsonResponse({ error: "blob not uploaded" }, 400);
+  }
+  await env.REGISTRY.put(latestKey(slug), JSON.stringify({ version }), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return jsonResponse({ ok: true });
+}
+
+// GET /v1/apps - list every published app at its latest version. Slugs with
+// a dangling pointer or missing manifest are skipped rather than failing
+// the whole listing.
+async function handleListApps(env: Env): Promise<Response> {
+  const slugPrefixes: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.REGISTRY.list({ prefix: "apps/", delimiter: "/", cursor });
+    slugPrefixes.push(...page.delimitedPrefixes);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor !== undefined);
+
+  const apps: { manifest: Manifest }[] = [];
+  for (const prefix of slugPrefixes) {
+    const slug = prefix.slice("apps/".length, -1);
+    const latest = await readJson<{ version: string }>(env.REGISTRY, latestKey(slug));
+    if (latest === null || !isValidVersion(latest.version)) continue;
+    const manifest = await readJson<Manifest>(
+      env.REGISTRY,
+      manifestKey(slug, latest.version),
+    );
+    if (manifest === null) continue;
+    apps.push({ manifest });
+  }
+
+  return jsonResponse(
+    { apps },
+    200,
+    { "Cache-Control": `public, max-age=${APPS_LIST_CACHE_SECONDS}` },
+  );
+}
+
+// GET /v1/apps/{slug}/latest - resolve the latest version's manifest plus a
+// download URL for its blob (presigned when credentials exist, Worker-served
+// /v1/blob/* otherwise).
+async function handleGetLatest(env: Env, origin: string, slug: string): Promise<Response> {
+  const latest = await readJson<{ version: string }>(env.REGISTRY, latestKey(slug));
+  if (latest === null || !isValidVersion(latest.version)) {
+    return jsonResponse({ error: "app not found" }, 404);
+  }
+  const manifest = await readJson<Manifest>(env.REGISTRY, manifestKey(slug, latest.version));
+  if (manifest === null) {
+    return jsonResponse({ error: "app not found" }, 404);
+  }
+
+  const aws = presignClient(env);
+  const downloadUrl = aws
+    ? await presignBlobUrl(env, aws, blobKey(slug, latest.version), "GET")
+    : `${origin}/v1/blob/${blobKey(slug, latest.version)}`;
+
+  return jsonResponse({ manifest, downloadUrl });
 }
 
 // Parse a single-range RFC 7233 `Range: bytes=<start>-<end>` header into the
@@ -417,111 +428,95 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
-
-    // GET serves the body; HEAD serves the same headers without a body so
-    // curl -I, browser preflight, and Cloudflare's own cache probes can
-    // size-check artifacts. Both methods route the same; serveR2 handles
-    // method-specific behavior (HEAD strips body, Range only on GET).
+    const origin = url.origin;
     const isReadMethod = request.method === "GET" || request.method === "HEAD";
-    const rangeHeader = request.headers.get("Range");
 
     try {
-      // /updates/latest.json - stable channel manifest. The release CI
-      // refreshes `releases/stable/latest.json` in R2 after a successful
-      // signed build. Short cache (60s) so promotions surface fast.
-      if (isReadMethod && path === "/updates/latest.json") {
-        return serveR2(env.RELEASES, "stable/latest.json", "application/json", 60, false, request.method, rangeHeader);
-      }
-
-      // /updates/beta/latest.json - beta channel manifest, refreshed by
-      // the release CI when the tag matches `v*-beta.*`. 60s cache so
-      // testers pick up beta promotions within a minute.
-      if (isReadMethod && path === "/updates/beta/latest.json") {
-        return serveR2(env.RELEASES, "beta/latest.json", "application/json", 60, false, request.method, rangeHeader);
-      }
-
-      // /releases/<tag>/<file> - release artifact (DMG, sig, MSI, etc.)
-      // uploaded by the release CI to `releases/<tag>/<file>` in R2. Tags
-      // are immutable so we serve with a 1-year immutable cache. Range
-      // requests are honored so Tauri's updater can resume large bundle
-      // downloads after a connection drop.
-      if (isReadMethod && path.startsWith("/releases/")) {
-        const key = path.replace(/^\/releases\//, "");
-        if (!isSafeR2Key(key)) {
-          return jsonResponse({ error: "invalid release path" }, 400);
-        }
-        const contentType = key.endsWith(".json")
-          ? "application/json"
-          : key.endsWith(".sig")
-            ? "text/plain; charset=utf-8"
-            : "application/octet-stream";
-        return serveR2(env.RELEASES, key, contentType, 31536000, true, request.method, rangeHeader);
-      }
-
-      // /vm/manifest.json - VM image manifest. Small JSON document
-      // describing the current image: version, download URL, SHA256 of
-      // the compressed payload and the decompressed image, sizes,
-      // minimum app version. Served from R2 (binding VM_IMAGES). The
-      // app reads this at first launch (Phase 2 Rust client) to decide
-      // whether to download or to skip when the local image matches.
-      if (isReadMethod && path === "/vm/manifest.json") {
-        return serveR2(env.VM_IMAGES, "manifest.json", "application/json", 300, false, request.method, rangeHeader);
-      }
-
-      // /vm/<file>.img.zst - compressed VM image asset. Long-cache
-      // because the filename is version-stamped; a new image gets a new
-      // filename + a fresh manifest. 1 year cache + immutable. Range
-      // requests honored so image_downloader.rs can resume the 162 MB
-      // payload after a network blip without restarting from 0.
-      if (isReadMethod && path.startsWith("/vm/") && path.endsWith(".img.zst")) {
-        const key = path.replace(/^\/vm\//, "");
-        if (!isSafeR2Key(key)) {
-          return jsonResponse({ error: "invalid vm path" }, 400);
-        }
-        return serveR2(env.VM_IMAGES, key, "application/octet-stream", 31536000, true, request.method, rangeHeader);
-      }
-
       // GET /health - health check
       if (request.method === "GET" && path === "/health") {
         return jsonResponse({ status: "ok" });
       }
 
-      // POST /tunnels - create a tunnel
-      if (request.method === "POST" && path === "/tunnels") {
-        const authError = await checkAuth(request);
-        if (authError) return authError;
-
-        let body: CreateTunnelRequest;
-        try {
-          body = await request.json();
-        } catch {
-          return jsonResponse({ error: "invalid JSON body" }, 400);
-        }
-
-        if (!body.projectName || !body.projectId) {
-          return jsonResponse({ error: "projectName and projectId are required" }, 400);
-        }
-        if (
-          typeof body.hostPort !== "number" ||
-          !Number.isInteger(body.hostPort) ||
-          body.hostPort < 1 ||
-          body.hostPort > 65535
-        ) {
-          return jsonResponse({ error: "hostPort must be an integer between 1 and 65535" }, 400);
-        }
-        const result = await createTunnel(env, body);
-        return jsonResponse(result, 201);
+      // GET /v1/apps - list all published apps
+      if (request.method === "GET" && path === "/v1/apps") {
+        return handleListApps(env);
       }
 
-      // DELETE /tunnels/:id - delete a tunnel
-      const deleteMatch = path.match(/^\/tunnels\/([a-f0-9-]+)$/);
-      if (request.method === "DELETE" && deleteMatch) {
-        const authError = await checkAuth(request);
-        if (authError) return authError;
+      // GET /v1/apps/{slug}/latest - latest manifest + download URL
+      const latestMatch = path.match(/^\/v1\/apps\/([^/]+)\/latest$/);
+      if (request.method === "GET" && latestMatch) {
+        const slug = latestMatch[1];
+        if (!SLUG_PATTERN.test(slug)) {
+          return jsonResponse({ error: "invalid slug" }, 400);
+        }
+        return handleGetLatest(env, origin, slug);
+      }
 
-        const tunnelId = deleteMatch[1];
-        await deleteTunnel(env, tunnelId);
-        return jsonResponse({ ok: true });
+      // POST /v1/apps/{slug}/versions - start a publish (auth)
+      const versionsMatch = path.match(/^\/v1\/apps\/([^/]+)\/versions$/);
+      if (request.method === "POST" && versionsMatch) {
+        const authError = checkAuth(request, env);
+        if (authError) return authError;
+        const slug = versionsMatch[1];
+        if (!SLUG_PATTERN.test(slug)) {
+          return jsonResponse({ error: "invalid slug" }, 400);
+        }
+        return handleCreateVersion(request, env, origin, slug);
+      }
+
+      // POST /v1/apps/{slug}/versions/{version}/complete - finish a publish (auth)
+      const completeMatch = path.match(/^\/v1\/apps\/([^/]+)\/versions\/([^/]+)\/complete$/);
+      if (request.method === "POST" && completeMatch) {
+        const authError = checkAuth(request, env);
+        if (authError) return authError;
+        const slug = completeMatch[1];
+        const version = completeMatch[2];
+        if (!SLUG_PATTERN.test(slug)) {
+          return jsonResponse({ error: "invalid slug" }, 400);
+        }
+        if (!isValidVersion(version)) {
+          return jsonResponse({ error: "invalid version" }, 400);
+        }
+        return handleCompleteVersion(env, slug, version);
+      }
+
+      // /v1/blob/{key} - fallback blob transport when presigned URLs are not
+      // configured. PUT requires the publish token; GET/HEAD are public
+      // (blobs are content under version-stamped keys) and honor Range so
+      // the launcher can resume large downloads.
+      if (path.startsWith("/v1/blob/")) {
+        const key = path.slice("/v1/blob/".length);
+        if (!isSafeR2Key(key)) {
+          return jsonResponse({ error: "invalid blob path" }, 400);
+        }
+
+        if (request.method === "PUT") {
+          const authError = checkAuth(request, env);
+          if (authError) return authError;
+          if (request.body === null) {
+            return jsonResponse({ error: "missing request body" }, 400);
+          }
+          await env.REGISTRY.put(key, request.body);
+          return jsonResponse({ ok: true });
+        }
+
+        if (isReadMethod) {
+          const contentType = key.endsWith(".json")
+            ? "application/json"
+            : "application/octet-stream";
+          // Version-stamped artifact keys are immutable; the `latest`
+          // pointer is not, but downloadUrl never points at it.
+          const immutable = !key.endsWith(".json") && !key.endsWith("/latest");
+          return serveR2(
+            env.REGISTRY,
+            key,
+            contentType,
+            immutable ? BLOB_CACHE_SECONDS : 60,
+            immutable,
+            request.method,
+            request.headers.get("Range"),
+          );
+        }
       }
 
       return jsonResponse({ error: "Not found" }, 404);

@@ -1,35 +1,19 @@
-name = "opnble-tunnel-api"
+name = "vibox-registry"
 main = "src/index.ts"
 compatibility_date = "2024-09-25"
+account_id = "9314014021a0127a3f9bed9b4f77be3a"
 
-routes = [
-  { pattern = "tunnel.openable.dev/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
-  { pattern = "openable.dev/updates/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
-  { pattern = "openable.dev/vm/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" },
-  { pattern = "openable.dev/releases/*", zone_id = "bde1cf3eb2d62e2e8a8b55690442ffc8" }
-]
+# No custom routes: the registry is served from the workers.dev subdomain.
 
-[vars]
-TUNNEL_DOMAIN = "openable.dev"
-
-# Cloudflare R2 bucket holding the VM base image and its manifest.
-# Provisioned manually: `wrangler r2 bucket create opnble-vm`.
-# Until the bucket exists the /vm/* routes return 500; create the bucket
-# before publishing any beta DMG that depends on the downloader.
+# Cloudflare R2 bucket holding published .vibox artifacts, their manifests,
+# and the per-app `latest` version pointers.
+# Provisioned manually: `wrangler r2 bucket create vibox-registry`.
 [[r2_buckets]]
-binding = "VM_IMAGES"
-bucket_name = "opnble-vm"
-
-# Cloudflare R2 bucket holding signed release artifacts. The release CI
-# uploads bundles + signatures under `releases/<tag>/<file>` and refreshes
-# the channel manifests at `releases/stable/latest.json` and
-# `releases/beta/latest.json`.
-[[r2_buckets]]
-binding = "RELEASES"
-bucket_name = "opnble-releases"
+binding = "REGISTRY"
+bucket_name = "vibox-registry"
 
 # Secrets (set via `wrangler secret put`):
-# CF_API_TOKEN - Cloudflare API token (Zone:DNS:Edit + Account:Cloudflare Tunnel:Edit)
-# CF_ACCOUNT_ID - Cloudflare account ID
-# CF_ZONE_ID - Zone ID for openable.dev
-# APP_API_KEY - Shared secret for authenticating desktop app requests
+# PUBLISH_TOKEN - Bearer token required on publish endpoints and fallback blob PUT
+# R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / ACCOUNT_ID - optional; when all
+#   three are present the Worker hands out presigned R2 URLs for blob
+#   upload/download instead of proxying bytes through /v1/blob/* itself
