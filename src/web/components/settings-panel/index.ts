@@ -1,5 +1,4 @@
 export { AboutBody } from "./about-body";
-export { CursorIntegrationBody } from "./cursor-integration-body";
 export { DiagnosticsBody } from "./diagnostics-body";
 export { KeyValueRow } from "./key-value-row";
 export { SaveFooter } from "./save-footer";

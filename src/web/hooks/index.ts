@@ -1,7 +1,6 @@
 export { useAppGate } from "./use-app-gate";
 export { useBranchCheckout, useBranchFetch } from "./use-branch-selector";
 export { useCopyFeedback } from "./use-copy-feedback";
-export { useCursorIntegration } from "./use-cursor-integration";
 export { useDashboardUiState, useEventSubscriptions } from "./use-dashboard-subscriptions";
 export { useDashboardWiring } from "./use-dashboard-wiring";
 export { useDeleteFlow } from "./use-delete-flow";

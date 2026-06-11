@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { SaveFooter, StartupSection, VmResourcesSection } from "@/components/settings-panel";
 import { Button, Typography } from "@/components/ui";
 import { AboutSection } from "@/containers/about-section";
-import { CursorIntegrationSection } from "@/containers/cursor-integration-section";
 import { DiagnosticsSection } from "@/containers/diagnostics-section";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -25,7 +24,6 @@ const Settings = () => {
           startOnLogin={settings.startOnLogin}
           onToggle={handleToggle}
         />
-        <CursorIntegrationSection />
         <DiagnosticsSection />
         <AboutSection />
       </div>
