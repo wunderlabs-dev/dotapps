@@ -64,6 +64,7 @@ pub async fn vibox_install_app(
     };
     let _ = tokio::fs::remove_file(&archive).await;
     ensure_slug_matches(&slug, &manifest.slug)?;
+    manifest.validate()?;
 
     let load_cmd = format!("podman load -i /repos/{slug}/image.tar");
     let (code, _stdout, stderr) = vm.exec_host(&load_cmd).await?;
@@ -110,6 +111,9 @@ pub async fn run_app_inner(
 ) -> Result<u16, AppError> {
     validate_slug(slug)?;
     let app = store.get(slug)?.ok_or_else(|| not_installed(slug))?;
+    // Re-validate the stored manifest: its `version` reaches the image ref in
+    // the shell command below, so never trust it just because it was persisted.
+    app.manifest.validate()?;
     let port = store.allocate_port(slug)?;
     let manifest = &app.manifest;
 

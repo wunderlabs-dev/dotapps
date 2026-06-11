@@ -35,6 +35,22 @@ pub struct StoreApp {
 }
 
 impl Manifest {
+    /// Validate every field that reaches a shell command, image tag, or path.
+    ///
+    /// The manifest arrives over the network from the registry, so this runs
+    /// before any of its fields are interpolated into an `sh -c` string.
+    pub fn validate(&self) -> Result<(), AppError> {
+        validate_slug(&self.slug)?;
+        validate_version(&self.version)?;
+        if self.internal_port == 0 {
+            return Err(AppError::InvalidInput {
+                field: "internalPort".into(),
+                reason: "must be non-zero".into(),
+            });
+        }
+        Ok(())
+    }
+
     /// Podman image reference the `.vibox` artifact was built with.
     pub fn image_ref(&self) -> String {
         format!("vibox/{}:{}", self.slug, self.version)
@@ -69,6 +85,26 @@ pub fn validate_slug(slug: &str) -> Result<(), AppError> {
         Err(AppError::InvalidInput {
             field: "slug".into(),
             reason: format!("'{slug}' must contain only lowercase letters, digits, and dashes"),
+        })
+    }
+}
+
+/// Validate a version string for safe use in shell commands and image tags.
+///
+/// Like the slug, `version` is interpolated into the podman image reference
+/// inside an `sh -c` string, so it is restricted to a conservative charset.
+pub fn validate_version(version: &str) -> Result<(), AppError> {
+    let valid = !version.is_empty()
+        && version.len() <= 64
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    if valid {
+        Ok(())
+    } else {
+        Err(AppError::InvalidInput {
+            field: "version".into(),
+            reason: format!("'{version}' must be 1-64 chars of letters, digits, '.', '_', or '-'"),
         })
     }
 }
@@ -150,5 +186,39 @@ mod tests {
         assert!(validate_slug("a;rm -rf /").is_err());
         assert!(validate_slug("../escape").is_err());
         assert!(validate_slug("a$(boom)").is_err());
+    }
+
+    #[test]
+    fn validate_version_accepts_semver_like() {
+        assert!(validate_version("1.0.0").is_ok());
+        assert!(validate_version("2.0.0-beta.1").is_ok());
+    }
+
+    #[test]
+    fn validate_version_rejects_shell_metacharacters() {
+        assert!(validate_version("").is_err());
+        assert!(validate_version("1.0 ; rm -rf /").is_err());
+        assert!(validate_version("$(boom)").is_err());
+        assert!(validate_version("1/0").is_err());
+        assert!(validate_version("a b").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_injection_in_version() {
+        let mut m = manifest();
+        m.version = "1.0.0; rm -rf /".to_string();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_clean_manifest() {
+        assert!(manifest().validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_port_zero() {
+        let mut m = manifest();
+        m.internal_port = 0;
+        assert!(m.validate().is_err());
     }
 }
