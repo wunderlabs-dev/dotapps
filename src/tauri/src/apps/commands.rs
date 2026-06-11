@@ -137,13 +137,29 @@ pub async fn run_app_inner(
     let port = store.allocate_port(slug)?;
     let manifest = &app.manifest;
 
+    // Load the image and run it by a deterministic `localhost/` alias.
+    //
+    // A registry-less saved tag is normalized unpredictably by `podman load`,
+    // so running it by the manifest's name triggers a docker.io pull. Instead:
+    // capture the exact reference `podman load` prints (always resolvable for
+    // `podman tag`), re-tag it to `localhost/{alias}`, and run that — a
+    // `localhost/` name is looked up purely locally, never pulled. The load
+    // runs here, not only at install, because the VM disk is a fresh CoW clone
+    // each boot, so previously loaded images are gone after a restart.
+    let alias = format!("localhost/{}:current", manifest.container_name());
     let run_cmd = format!(
-        "podman volume create {vol} >/dev/null 2>&1; podman rm -f {name} >/dev/null 2>&1; \
-         podman run -d --name {name} -p {port}:{internal} -v {vol}:/data {image}",
+        "REF=$(podman load -i /repos/{slug}/image.tar 2>&1 | \
+           sed -n 's/^Loaded image[(s)]*:[[:space:]]*//p' | tail -n1); \
+         [ -n \"$REF\" ] || REF=$(podman images -q --sort created | tail -n1); \
+         podman tag \"$REF\" {alias} >/dev/null 2>&1; \
+         podman volume create {vol} >/dev/null 2>&1; \
+         podman rm -f {name} >/dev/null 2>&1; \
+         podman run -d --name {name} -p {port}:{internal} -v {vol}:/data {alias}",
+        slug = slug,
+        alias = alias,
         vol = manifest.volume_name(),
         name = manifest.container_name(),
         internal = manifest.internal_port,
-        image = manifest.image_ref(),
     );
     let (code, _stdout, stderr) = vm.exec_host(&run_cmd).await?;
     if code != 0 {
