@@ -8,6 +8,46 @@
 
 **Tech Stack:** Rust (Tauri 2, tauri-specta, reqwest, tar, zstd, clap), React 19 + TanStack Router/Query + Tailwind 4, Cloudflare Workers + R2 (TypeScript, aws4fetch), podman-in-VM via vfkit.
 
+---
+
+## AMENDMENTS (decided mid-execution; supersede conflicting text below)
+
+**A. Rebrand vibox → dotapps** (Vlad, after all Phase B tracks were dispatched). The B-track
+sections below still say "vibox" — they were executed as written; the rename is ONE mechanical
+pass in the new Phase C0 (after the last track merges, so it never races a running agent):
+
+| Surface | Was | Becomes |
+|---|---|---|
+| Product name / identifier / window title / UI wordmark | vibox, com.vibox.app | dotapps, com.dotapps.app |
+| Home dir | ~/.vibox | ~/.dotapps |
+| CLI crate / bin / src dir | vibox-cli, `vibox` | dotapps-cli, `dotapps` |
+| Artifact extension / project manifest | .vibox, vibox.json | **.apps**, dotapps.json |
+| Env vars | VIBOX_REGISTRY, VIBOX_TOKEN | DOTAPPS_REGISTRY, DOTAPPS_TOKEN |
+| Tauri commands / frontend client | vibox_*, viboxApi | dotapps_*, dotappsApi |
+| Worker name / R2 bucket | vibox-registry | dotapps-registry (redeploy + new bucket; old ones deleted after cutover) |
+| Image tag / container / volume prefix | vibox/{slug}, vibox-{slug}, vibox-{slug}-data | dotapps/{slug}, dotapps-{slug}, dotapps-{slug}-data |
+| Repo directory name | vibox | unchanged until after the hackathon (live worktrees/session) |
+| Rust crates opnble/opnble-agent/opnble_lib, container prefix `opnble-`, mount tag `opnble-repos` | — | unchanged (internal; baked into VM image) |
+
+**B. Registry domain**: `registry.dotapps.club` (zone being added to Cloudflare; GoDaddy NS
+flip in progress — background poll watches for activation, then bind a custom domain to the
+worker). Until/unless active by demo time: workers.dev URL is used but NEVER shown on screen.
+
+**C. Security hardening (done, commit 57d0183)** from the automated review of the CLI:
+token only sent to registry-origin URLs; https-only registries (loopback http allowed for
+`wrangler dev`); slug/version/port validated at both CLI entry points; random exclusive
+temp dir for pack. The Worker already enforced slug/version validation server-side.
+
+**D. Phase C is now:**
+- **C0 Rename pass** (after B1 merges): apply table A across Rust/TS/worker/examples/docs;
+  redeploy worker as dotapps-registry with fresh PUBLISH_TOKEN; update docs/registry-deploy.md;
+  re-seed `~/.dotapps` (seed script rename); full quality gates (cargo clippy+test, pnpm check,
+  worker tsc) and a fresh registry smoke test.
+- **C1 Merge + build** (as originally written, but order became B3→B5→B4→B2→[B1] due to
+  actual completion times; Cargo.lock conflicts resolved at each Rust merge).
+- **C2 End-to-end rehearsal** (as written, with dotapps names + registry.dotapps.club).
+- **C3 Demo insurance** (as written; local fallback uses `dotapps publish --registry http://localhost:8787`).
+
 **Non-negotiable constraints:**
 - Container name prefix `opnble-` (`constants.rs` `containers::NAME_PREFIX`) and VirtioFS mount tag `opnble-repos` (`VIRTIOFS_MOUNT_TAG`) **must not change** — they are baked into the VM image's agent validation and `/etc/fstab`. (`ExecHost`-launched containers named `vibox-*` are fine: prefix validation only applies to the agent's own container RPCs.)
 - The Rust crate names (`opnble`, `opnble-agent`, `opnble_lib`) **stay** — renaming breaks logging filters and the specta export. Cosmetic only.
