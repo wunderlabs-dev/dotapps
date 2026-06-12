@@ -42,7 +42,7 @@ const LauncherAppRow = ({
     <span className="flex size-8 shrink-0 items-center justify-center text-xl" aria-hidden="true">
       {app.manifest.icon}
     </span>
-    <Typography as="span" variant="body" className="min-w-0 flex-1 truncate">
+    <Typography as="span" variant="small" className="min-w-0 flex-1 truncate">
       {opening ? "Opening…" : app.manifest.name}
     </Typography>
     <Typography as="span" variant="small" color="muted" className="shrink-0 tabular-nums">

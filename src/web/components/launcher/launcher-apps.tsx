@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 
+import { Typography } from "@/components/ui";
 import type { InstallProgress } from "@/hooks/use-deeplink-installs";
 import type { InstalledApp } from "@/lib/dotapps";
 
-import { LauncherAppsBody } from "./launcher-apps-body";
+import { LauncherAppsPanel } from "./launcher-apps-list";
 
 interface LauncherAppsProps {
   readonly visibleApps: readonly InstalledApp[];
@@ -37,14 +38,14 @@ const LauncherApps = ({
   }, [selectedIndex]);
 
   return (
-    <div
-      ref={listRef}
-      data-slot="launcher-apps"
-      role="listbox"
-      aria-label="Installed apps"
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto py-1"
-    >
-      <LauncherAppsBody
+    <div data-slot="launcher-apps" className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 px-3 pt-2 pb-1">
+        <Typography as="p" variant="caption" className="font-medium text-foreground-subtle">
+          Recent apps
+        </Typography>
+      </div>
+      <LauncherAppsPanel
+        listRef={listRef}
         visibleApps={visibleApps}
         installing={installing}
         selectedIndex={selectedIndex}
