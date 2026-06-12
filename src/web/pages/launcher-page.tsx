@@ -22,15 +22,13 @@ const LauncherPage = () => {
   });
 
   return (
-    <div className="flex h-full items-start justify-center p-6 pt-16">
-      <LibraryTab
-        apps={installed.data ?? []}
-        installing={installing}
-        onChanged={() => {
-          installed.refetch();
-        }}
-      />
-    </div>
+    <LibraryTab
+      apps={installed.data ?? []}
+      installing={installing}
+      onChanged={() => {
+        installed.refetch();
+      }}
+    />
   );
 };
 

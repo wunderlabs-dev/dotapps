@@ -15,13 +15,20 @@
       {
         "label": "main",
         "title": "dotapps",
-        "width": 1440,
-        "height": 1080,
+        "width": 720,
+        "height": 440,
+        "minWidth": 720,
+        "minHeight": 440,
+        "maxWidth": 720,
+        "maxHeight": 440,
+        "center": true,
         "visible": true,
-        "decorations": true,
-        "resizable": true
+        "decorations": false,
+        "transparent": true,
+        "resizable": false
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": "default-src 'self' http://localhost:*; script-src 'self' 'unsafe-inline' http://localhost:*; style-src 'self' 'unsafe-inline' http://localhost:*; img-src 'self' data: http://localhost:*; connect-src 'self' http://localhost:* ws://localhost:*; frame-src http://localhost:*"
     }

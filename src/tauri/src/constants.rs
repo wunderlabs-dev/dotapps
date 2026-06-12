@@ -87,6 +87,12 @@ pub mod events {
     pub const VM_IMAGE_PROGRESS: &str = "vm-image-progress";
 }
 
+/// Main launcher window dimensions (Raycast-style compact palette).
+pub mod launcher {
+    pub const WINDOW_WIDTH: f64 = 720.0;
+    pub const WINDOW_HEIGHT: f64 = 440.0;
+}
+
 /// VM image distribution endpoint. The worker serves a manifest at this URL
 /// pointing at the current image on R2. See `src/worker/src/index.ts` and
 /// `docs/release-setup.md` section 7 for the server side.

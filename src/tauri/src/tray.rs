@@ -307,7 +307,13 @@ fn show_main_window(app: &AppHandle) {
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("dotapps")
-        .inner_size(1400.0, 900.0)
+        .inner_size(
+            crate::constants::launcher::WINDOW_WIDTH,
+            crate::constants::launcher::WINDOW_HEIGHT,
+        )
+        .decorations(false)
+        .resizable(false)
+        .center()
         .build()
         {
             Ok(window) => {

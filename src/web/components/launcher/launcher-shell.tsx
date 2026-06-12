@@ -7,7 +7,7 @@ interface LauncherShellProps {
 const LauncherShell = ({ children }: LauncherShellProps) => (
   <div
     data-slot="launcher-shell"
-    className="flex max-h-modal w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-elevated shadow-lg"
+    className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface-elevated"
   >
     {children}
   </div>

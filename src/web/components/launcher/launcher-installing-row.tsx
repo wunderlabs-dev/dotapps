@@ -11,7 +11,7 @@ const installPhaseLabel = (phase: InstallProgress["phase"]) =>
 const LauncherInstallingRow = ({ progress }: LauncherInstallingRowProps) => (
   <div
     data-slot="launcher-installing-row"
-    className="flex w-full items-center gap-3 px-3 py-2.5 text-left opacity-80"
+    className="flex w-full items-center gap-2.5 px-3 py-2 text-left opacity-80"
   >
     <span className="flex size-8 shrink-0 items-center justify-center text-xl" aria-hidden="true">
       📦

@@ -1,6 +1,7 @@
 use tauri::Manager;
 
 use super::shutdown::graceful_shutdown;
+use crate::constants::launcher;
 use crate::error::AppError;
 
 /// Show or focus the main application window.
@@ -13,7 +14,11 @@ pub async fn show_window(app: tauri::AppHandle) -> Result<(), AppError> {
     } else {
         tauri::WebviewWindowBuilder::new(&app, "main", tauri::WebviewUrl::App("index.html".into()))
             .title("dotapps")
-            .inner_size(1400.0, 900.0)
+            .inner_size(launcher::WINDOW_WIDTH, launcher::WINDOW_HEIGHT)
+            .decorations(false)
+            .transparent(true)
+            .resizable(false)
+            .center()
             .build()?;
     }
     Ok(())
