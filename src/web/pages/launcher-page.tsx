@@ -1,15 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { LauncherHeader } from "@/components/launcher/launcher-header";
 import { LibraryTab } from "@/components/launcher/library-tab";
 import { useDeeplinkInstalls } from "@/hooks/use-deeplink-installs";
 import { dotappsApi } from "@/lib/dotapps";
 
 const INSTALLED_REFETCH_MS = 2000;
-// The registry catalog is still polled (no Store UI) so the Library can flag
-// when an installed app has a newer version available. Apps are installed and
-// updated via `dotapps://` deep links.
-const STORE_REFETCH_MS = 5000;
 
 const useLauncherQueries = () => {
   const installed = useQuery({
@@ -17,37 +12,24 @@ const useLauncherQueries = () => {
     queryFn: dotappsApi.installedApps,
     refetchInterval: INSTALLED_REFETCH_MS,
   });
-  const store = useQuery({
-    queryKey: ["dotapps", "store"],
-    queryFn: dotappsApi.registryApps,
-    refetchInterval: STORE_REFETCH_MS,
-  });
-  return { installed, store };
+  return { installed };
 };
 
 const LauncherPage = () => {
-  const { installed, store } = useLauncherQueries();
+  const { installed } = useLauncherQueries();
   const installing = useDeeplinkInstalls(() => {
     installed.refetch();
   });
 
   return (
-    <div className="flex h-full flex-col gap-6 p-8">
-      <LauncherHeader
-        onReset={() => {
+    <div className="flex h-full items-start justify-center p-6 pt-16">
+      <LibraryTab
+        apps={installed.data ?? []}
+        installing={installing}
+        onChanged={() => {
           installed.refetch();
         }}
       />
-      <div className="flex-1">
-        <LibraryTab
-          apps={installed.data ?? []}
-          storeApps={store.data ?? []}
-          installing={installing}
-          onChanged={() => {
-            installed.refetch();
-          }}
-        />
-      </div>
     </div>
   );
 };

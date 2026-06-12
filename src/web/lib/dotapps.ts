@@ -27,11 +27,11 @@ interface StoreApp {
 const dotappsApi = {
   registryApps: () => invoke<StoreApp[]>("dotapps_registry_apps"),
   installedApps: () => invoke<InstalledApp[]>("dotapps_installed_apps"),
-  install: (slug: string) => invoke<InstalledApp>("dotapps_install_app", { slug, version: null }),
+  install: (slug: string, version: string | null = null) =>
+    invoke<InstalledApp>("dotapps_install_app", { slug, version }),
   run: (slug: string) => invoke<number>("dotapps_run_app", { slug }),
   stop: (slug: string) => invoke<void>("dotapps_stop_app", { slug }),
   open: (slug: string) => invoke<void>("dotapps_open_app", { slug }),
-  reset: () => invoke<void>("dotapps_reset"),
 };
 
 export type { InstalledApp, Manifest, StoreApp };

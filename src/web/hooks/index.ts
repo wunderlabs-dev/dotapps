@@ -13,7 +13,6 @@ export { useProjectSearch } from "./use-project-search";
 export { useProjects } from "./use-projects";
 export { usePublishActions } from "./use-publish-actions";
 export { useRepoActions } from "./use-repo-actions";
-export { useResourceMonitor } from "./use-resource-monitor";
 export { useSettings } from "./use-settings";
 export { useShareActions } from "./use-share-actions";
 export { useStateRecoveryNotifier } from "./use-state-recovery-notifier";
