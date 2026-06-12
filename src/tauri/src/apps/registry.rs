@@ -255,9 +255,14 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_is_used_without_env_override() {
-        // DOTAPPS_REGISTRY is unset in tests; std::env::set_var is disallowed
-        // (not thread-safe), so only the fallback path is exercised here.
-        assert_eq!(registry_base(), DEFAULT_REGISTRY);
+    fn default_registry_url_is_production_domain() {
+        assert_eq!(DEFAULT_REGISTRY, "https://registry.dotapps.club");
+    }
+
+    #[test]
+    fn registry_base_uses_env_override_or_default() {
+        let expected =
+            std::env::var("DOTAPPS_REGISTRY").unwrap_or_else(|_| DEFAULT_REGISTRY.to_string());
+        assert_eq!(registry_base(), expected);
     }
 }

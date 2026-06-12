@@ -35,7 +35,13 @@ pub struct InstallProgress {
     pub error: Option<String>,
 }
 
-fn emit_progress(app: &AppHandle, slug: &str, name: Option<&str>, phase: &str, error: Option<String>) {
+fn emit_progress(
+    app: &AppHandle,
+    slug: &str,
+    name: Option<&str>,
+    phase: &str,
+    error: Option<String>,
+) {
     let _ = app.emit(
         PROGRESS_EVENT,
         InstallProgress {
@@ -97,7 +103,13 @@ pub async fn handle(app: AppHandle, url: String) {
 
     if !vm.wait_until_running(VM_WAIT).await {
         tracing::error!("deep link {url:?}: VM not ready after {VM_WAIT:?}");
-        emit_progress(&app, &link.slug, None, "failed", Some("VM not ready".to_string()));
+        emit_progress(
+            &app,
+            &link.slug,
+            None,
+            "failed",
+            Some("VM not ready".to_string()),
+        );
         return;
     }
 

@@ -102,6 +102,13 @@ cancel_vm_image_download
 check_setup_status
 check_windows_setup
 container_status
+dotapps_install_app
+dotapps_installed_apps
+dotapps_open_app
+dotapps_registry_apps
+dotapps_reset
+dotapps_run_app
+dotapps_stop_app
 download_vm_image
 enable_wsl_windows
 init_vm

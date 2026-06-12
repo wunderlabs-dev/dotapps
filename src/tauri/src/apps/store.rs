@@ -180,8 +180,12 @@ mod tests {
         let path = dir.path().join("apps.json");
 
         let store = AppStore::load(path.clone());
-        store.upsert(make_app("shift-board", "Shift Board")).unwrap();
-        store.upsert(make_app("cafe-tracker", "Cafe Tracker")).unwrap();
+        store
+            .upsert(make_app("shift-board", "Shift Board"))
+            .unwrap();
+        store
+            .upsert(make_app("cafe-tracker", "Cafe Tracker"))
+            .unwrap();
 
         let reloaded = AppStore::load(path);
         let apps = reloaded.list().unwrap();
@@ -196,7 +200,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = AppStore::load(dir.path().join("apps.json"));
 
-        store.upsert(make_app("cafe-tracker", "Cafe Tracker")).unwrap();
+        store
+            .upsert(make_app("cafe-tracker", "Cafe Tracker"))
+            .unwrap();
         let mut updated = make_app("cafe-tracker", "Cafe Tracker");
         updated.manifest.version = "2.0.0".to_string();
         store.upsert(updated).unwrap();
@@ -210,8 +216,12 @@ mod tests {
     fn allocate_port_starts_at_4100_and_is_stable_per_slug() {
         let dir = TempDir::new().unwrap();
         let store = AppStore::load(dir.path().join("apps.json"));
-        store.upsert(make_app("cafe-tracker", "Cafe Tracker")).unwrap();
-        store.upsert(make_app("shift-board", "Shift Board")).unwrap();
+        store
+            .upsert(make_app("cafe-tracker", "Cafe Tracker"))
+            .unwrap();
+        store
+            .upsert(make_app("shift-board", "Shift Board"))
+            .unwrap();
 
         assert_eq!(store.allocate_port("cafe-tracker").unwrap(), 4100);
         assert_eq!(store.allocate_port("shift-board").unwrap(), 4101);
@@ -226,7 +236,9 @@ mod tests {
         let path = dir.path().join("apps.json");
 
         let store = AppStore::load(path.clone());
-        store.upsert(make_app("cafe-tracker", "Cafe Tracker")).unwrap();
+        store
+            .upsert(make_app("cafe-tracker", "Cafe Tracker"))
+            .unwrap();
         assert_eq!(store.allocate_port("cafe-tracker").unwrap(), 4100);
 
         let reloaded = AppStore::load(path);
@@ -250,7 +262,9 @@ mod tests {
         let path = dir.path().join("apps.json");
 
         let store = AppStore::load(path.clone());
-        store.upsert(make_app("cafe-tracker", "Cafe Tracker")).unwrap();
+        store
+            .upsert(make_app("cafe-tracker", "Cafe Tracker"))
+            .unwrap();
         store.set_running("cafe-tracker", true).unwrap();
 
         let reloaded = AppStore::load(path);

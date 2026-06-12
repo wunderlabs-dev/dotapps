@@ -32,9 +32,7 @@ pub async fn dotapps_registry_apps() -> Result<Vec<StoreApp>, AppError> {
     clippy::needless_pass_by_value,
     reason = "Tauri command handler receives owned deserialized values"
 )]
-pub fn dotapps_installed_apps(
-    store: State<Arc<AppStore>>,
-) -> Result<Vec<InstalledApp>, AppError> {
+pub fn dotapps_installed_apps(store: State<Arc<AppStore>>) -> Result<Vec<InstalledApp>, AppError> {
     store.list()
 }
 

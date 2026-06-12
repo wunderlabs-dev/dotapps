@@ -183,9 +183,7 @@ impl VmLifecycle {
     ) -> Result<(i32, String, String), crate::error::AppError> {
         let agent = {
             let guard = self.manager.lock().await;
-            let manager = guard
-                .as_ref()
-                .ok_or(crate::error::AppError::VmNotRunning)?;
+            let manager = guard.as_ref().ok_or(crate::error::AppError::VmNotRunning)?;
             Arc::clone(manager.agent())
         };
         agent.exec_host(cmd).await

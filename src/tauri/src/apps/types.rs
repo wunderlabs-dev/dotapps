@@ -137,7 +137,9 @@ mod tests {
 
         let value = serde_json::to_value(&parsed).unwrap();
         assert_eq!(
-            value.get("internalPort").and_then(serde_json::Value::as_u64),
+            value
+                .get("internalPort")
+                .and_then(serde_json::Value::as_u64),
             Some(8000)
         );
         assert!(value.get("internal_port").is_none());
